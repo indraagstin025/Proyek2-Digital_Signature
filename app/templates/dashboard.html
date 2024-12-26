@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <!-- Prevent caching -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+</head>
+<body>
+    <h1>Welcome to Your Dashboard</h1>
+    <p>Hello, {{ current_user.username }}!</p>
+
+    <!-- Tampilkan pesan flash -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <a href="{{ url_for('auth.logout') }}">Logout</a>
+
+    <script>
+        // Push current state to prevent back navigation
+        window.history.pushState(null, "", window.location.href);
+
+        // Prevent going back to login by re-pushing state on back navigation
+        window.onpopstate = function () {
+            window.history.pushState(null, "", window.location.href);
+        };
+    </script>
+</body>
+</html>
