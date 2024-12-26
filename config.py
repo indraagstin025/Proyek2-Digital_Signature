@@ -10,6 +10,6 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 class TestingConfig(Config):
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'  # Gunakan SQLite in-memory untuk pengujian
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:' 
     TESTING = True
     
