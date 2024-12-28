@@ -42,18 +42,16 @@ def create_user():
 def test_register(client, create_user):
     """Menguji proses pendaftaran."""
     response = client.post('/auth/register', data={
-        'username': 'testuser123',  # Sesuaikan dengan validasi
+        'username': 'testuser123',  
         'email': 'test@example.com',
         'password': 'password123'
     }, follow_redirects=True)
 
-    # Memastikan bahwa halaman redirect ke login setelah pendaftaran berhasil
+    
     assert response.status_code == 200
-    assert b'Already have an account? Login here' in response.data  # Pesan pada halaman login
+    assert b'Already have an account? Login here' in response.data  
 
 
-
-  # Pastikan pengguna dialihkan
 
 def test_invalid_login(client, create_user):
     """Menguji proses login dengan kredensial tidak valid."""
@@ -63,7 +61,7 @@ def test_invalid_login(client, create_user):
         'password': 'wrongpassword'
     }, follow_redirects=True)
     
-    # Memastikan bahwa login gagal dengan pesan error
+    
     assert response.status_code == 200
     assert b'Invalid email or password.' in response.data
 
@@ -77,7 +75,7 @@ def test_logout(client, create_user):
     
     response = client.get('/auth/logout', follow_redirects=True)
     
-    # Memastikan bahwa setelah logout, pengguna dialihkan ke halaman login
+ 
     assert response.status_code == 200
     assert b'You have been logged out.' in response.data
-    assert b'Login' in response.data  # Pastikan halaman login ditampilkan
+    assert b'Login' in response.data  

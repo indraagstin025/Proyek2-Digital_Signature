@@ -4,6 +4,7 @@ from app.extensions import init_extensions, db
 from app.routes import register_blueprints
 from dotenv import load_dotenv
 from app.extensions import db
+from app.extensions import mail, db
 import pymysql
 
 
@@ -23,6 +24,8 @@ def create_app(config_name='default'):
     
     init_extensions(app)
     register_blueprints(app)
+    mail.init_app(app)
+    
     
     with app.app_context():
         db.create_all() 
