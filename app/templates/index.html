@@ -1,21 +1,116 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Signature Online</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-</head>
-<body class="bg-gray-100 font-sans flex flex-col items-center justify-center min-h-screen">
-    <h1 class="text-3xl font-bold text-blue-500 mb-6">Signature Online</h1>
-    <p class="text-gray-700 mb-8 text-center">Selamat datang di platform tanda tangan digital kami.</p>
-    <div class="space-x-4">
-        <a href="{{ url_for('auth.login') }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
-            Login
-        </a>
-        <a href="{{ url_for('auth.register') }}" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-            Register
-        </a>
-    </div>
-</body>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tanda Tangan Digital</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+  </head>
+  <body class="font-sans bg-gray-100">
+    <header class="py-4 px-4 md:px-8 flex items-center justify-between bg-white relative">
+      <div>
+        <h1 class="text-xl font-bold text-gray-800">Tanda Tangan Digital</h1>
+      </div>
+
+      <button class="md:hidden block text-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-400 rounded-md" id="hamburger-button">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16m-7 6h7" />
+        </svg>
+      </button>
+
+      <nav
+        class="hidden md:flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-6 items-center absolute md:static bg-white shadow-md md:shadow-none rounded-lg p-4 md:p-0 md:bg-transparent top-16 left-0 w-full md:w-auto z-10"
+        id="nav-menu"
+      >
+        <ul class="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-6 items-center">
+          <li><a href="#" class="hover:text-blue-500">Home</a></li>
+          <li><a href="#" class="hover:text-blue-500">Cara Kerja</a></li>
+          <li><a href="#" class="hover:text-blue-500">Fitur</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <section class="bg-gray-100 py-12 px-4 sm:px-8 lg:px-16">
+      <div class="container mx-auto max-w-7xl relative flex flex-col-reverse lg:flex-row items-center justify-center lg:space-x-12">
+        <div class="lg:w-1/2 text-center lg:text-left mb-8 lg:mb-0">
+          <h2 class="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-gray-800 leading-tight">Discover the joy of effortless <span class="text-blue-500">digital signature</span></h2>
+          <p class="text-sm md:text-base text-gray-600 mt-4">Tanda Tangan Digital memudahkan Anda dalam menandatangani dokumen secara online dengan cepat, mudah, dan aman.</p>
+          <a href="{{ url_for('dashboard.base') }}">
+            <button class="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg mt-6">Mulai Sekarang</button>
+          </a>
+        </div>
+        <div class="lg:w-1/2 flex justify-center items-center">
+          <div class="relative w-48 h-48 sm:w-64 sm:h-64 lg:w-80 lg:h-80">
+            <div class="bg-yellow-400 w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-lg absolute top-4 left-4 lg:top-4 lg:left-24 transform -rotate-12 transition-transform duration-300 hover:scale-110"></div>
+            <div class="bg-blue-400 w-12 h-12 sm:w-16 sm:h-16 lg:w-20 lg:h-20 rounded-lg absolute top-16 lg:top-24 right-12 lg:right-4 transform rotate-6 transition-transform duration-300 hover:rotate-12"></div>
+            <div class="bg-purple-400 w-20 h-20 sm:w-24 sm:h-24 lg:w-28 lg:h-28 rounded-lg absolute bottom-4 left-20 lg:bottom-8 lg:left-32 transform -translate-x-1/2 -rotate-12 transition-transform duration-300 hover:-translate-y-4"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="bg-white py-12 px-8 md:px-16 lg:px-24">
+      <div class="container mx-auto">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div class="text-center">
+            <div class="bg-gray-200 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118   
+ 0z"
+                />
+              </svg>
+            </div>
+            <h3 class="text-xl font-bold text-gray-800">Efisiensi Waktu</h3>
+            <p class="text-gray-600 mt-2">Tidak perlu lagi mencetak dan menandatangani dokumen secara manual.</p>
+          </div>
+          <div class="text-center">
+            <div class="bg-gray-200 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25   
+ 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
+                />
+              </svg>
+            </div>
+            <h3 class="text-xl font-bold text-gray-800">Keamanan Terjamin</h3>
+            <p class="text-gray-600 mt-2">Dokumen Anda terlindungi dari pemalsuan dan penyalahgunaan.</p>
+          </div>
+          <div class="text-center">
+            <div class="bg-gray-200 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758   
+ 3.848A3.752 3.752 0 0118 19.5H6.75z"
+                />
+              </svg>
+            </div>
+            <h3 class="text-xl font-bold text-gray-800">Ramah Lingkungan</h3>
+            <p class="text-gray-600 mt-2">Kurangi penggunaan kertas dan selamatkan bumi kita.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="bg-gray-800 py-6 text-white text-center relative bottom-0 w-full">
+      <p>&copy; 2023 Tanda Tangan Digital</p>
+    </footer>
+
+    <script>
+      const hamburgerButton = document.getElementById("hamburger-button");
+      const navMenu = document.getElementById("nav-menu");
+
+      hamburgerButton.addEventListener("click", () => {
+        navMenu.classList.toggle("hidden");
+      });
+    </script>
+  </body>
 </html>

@@ -13,3 +13,7 @@ def index():
 @login_required
 def home():
     return render_template('dashboard.html')
+
+@dashboard_bp.route('/base')
+def base():
+    return render_template('base.html')

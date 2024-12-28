@@ -13,12 +13,15 @@ def register():
         username = request.form['username']
         email = request.form['email']
         password = request.form['password']
-        user = User(username=username, email=email)
-        user.set_password(password)
-        db.session.add(user)
-        db.session.commit()
-        flash('Registration successful! Please login.', 'success')
-        return redirect(url_for('auth.login'))
+        
+        # Coba buat user baru dengan validasi menggunakan method create_user
+        try:
+            user = User.create_user(username=username, email=email, password=password)
+            flash('Registration successful! Please login.', 'success')
+            return redirect(url_for('auth.login'))
+        except ValueError as e:
+            flash(str(e), 'danger')  # Menampilkan pesan error jika ada masalah dengan validasi
+        
     return render_template('auth/register.html')
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
