@@ -18,7 +18,7 @@ def create_app(config_name='default'):
     app = Flask(__name__)
     
     if config_name == 'testing':
-        app.config.from_object('config.TestingConfig')  # Gunakan TestingConfig untuk pengujian
+        app.config.from_object('config.TestingConfig')  
     else:
         app.config.from_object('config.Config') 
     
@@ -26,9 +26,6 @@ def create_app(config_name='default'):
     register_blueprints(app)
     mail.init_app(app)
     
-    
-    with app.app_context():
-        db.create_all() 
     
     @app.after_request
     def add_header(response):

@@ -4,3 +4,11 @@ venv
 migrations
 
 config.py
+
+__pycache__/
+
+.pytest_cache
+
+htmlcov
+
+.coverage

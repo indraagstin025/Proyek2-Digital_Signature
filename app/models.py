@@ -12,60 +12,70 @@ class User(db.Model, UserMixin):
     password = db.Column(db.String(255), nullable=False)
 
     def set_password(self, password):
-        """Set password with validation."""
-        if not self.is_valid_password(password):
+        """Set hashed password after validation."""
+        if not self._is_password_format_valid(password):
             raise ValueError("Password harus minimal 8 karakter dan mengandung angka.")
         self.password = generate_password_hash(password)
 
     def check_password(self, password):
-        """Check if the given password matches the stored hash."""
+        """Verify the given password against the stored hash."""
         return check_password_hash(self.password, password)
 
     @staticmethod
-    def is_valid_username(username):
-        """Validate username to ensure it contains numbers and is unique."""
-        # Pastikan username tidak kosong dan panjangnya minimal 3 karakter
+    def _is_username_format_valid(username):
+        """Check if the username format is valid."""
         if not username or len(username) < 3:
-            return False
-        
-        # Username harus mengandung angka
+            return False  
         if not any(char.isdigit() for char in username):
-            return False
-        
-        # Validasi untuk memastikan username unik di database
-        existing_user = User.query.filter_by(username=username).first()
-        if existing_user:
-            return False  # Username sudah ada di database
-        
+            return False 
         return True
 
     @staticmethod
-    def is_valid_password(password):
-        """Validate password to ensure it has at least 8 characters and contains numbers."""
+    def _is_password_format_valid(password):
+        """Check if the password format is valid."""
         if len(password) < 8:
-            return False  # Password harus minimal 8 karakter
+            return False 
         if not any(char.isdigit() for char in password):
-            return False  # Password harus mengandung angka
+            return False 
         return True
 
     @classmethod
+    def is_username_unique(cls, username):
+        """Check if the username is unique in the database."""
+        return cls.query.filter_by(username=username).first() is None
+
+    @classmethod
+    def is_email_unique(cls, email):
+        """Check if the email is unique in the database."""
+        return cls.query.filter_by(email=email).first() is None
+
+    @classmethod
     def create_user(cls, username, email, password):
-        """Create a new user after validating username and password."""
-        # Validasi username dan password
-        if not cls.is_valid_username(username):
-            raise ValueError("Username tidak valid. Pastikan username mengandung angka dan unik.")
+        """
+        Create a new user with validated username and password.
+        Raises ValueError if validation fails or if username/email is not unique.
+        """
+        if not cls._is_username_format_valid(username):
+            raise ValueError("Username tidak valid. Pastikan username minimal 3 karakter dan mengandung angka.")
         
-        if not cls.is_valid_password(password):
+        if not cls.is_username_unique(username):
+            raise ValueError("Username sudah terdaftar.")
+        
+        if not cls.is_email_unique(email):
+            raise ValueError("Email sudah terdaftar.")
+        
+        if not cls._is_password_format_valid(password):
             raise ValueError("Password tidak valid. Password harus minimal 8 karakter dan mengandung angka.")
         
-        # Membuat user baru
+        
         new_user = cls(username=username, email=email)
         new_user.set_password(password)
 
+        
         try:
             db.session.add(new_user)
             db.session.commit()
             return new_user
         except IntegrityError:
             db.session.rollback()
-            raise ValueError("Username atau email sudah terdaftar.")
+            raise ValueError("Terjadi kesalahan saat menyimpan data. Coba lagi.")
