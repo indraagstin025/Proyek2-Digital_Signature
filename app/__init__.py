@@ -9,6 +9,7 @@ import pymysql
 
 
 
+
 load_dotenv()
 pymysql.install_as_MySQLdb()
 
@@ -25,7 +26,6 @@ def create_app(config_name='default'):
     init_extensions(app)
     register_blueprints(app)
     mail.init_app(app)
-    
     
     @app.after_request
     def add_header(response):
