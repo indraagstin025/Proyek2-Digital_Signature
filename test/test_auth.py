@@ -73,15 +73,22 @@ def test_invalid_login(client, create_user):
     assert response.status_code == 200
     assert b'Invalid email or password.' in response.data
 
-def test_forgot_password(client, create_user):
-    """Menguji proses lupa password."""
-    create_user('testuser', 'test@example.com', 'password123')
-    response = client.post('/auth/forgot-password', data={
-        'email': 'test@example.com'
+def test_reset_password(client, create_user, app):
+    """Menguji proses reset password."""
+    user = create_user('testuser', 'test@example.com', 'password123')
+
+    with app.app_context():
+        from itsdangerous import URLSafeTimedSerializer
+        serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+        token = serializer.dumps(user.email, salt=app.config['PASSWORD_RESET_SALT'])
+        print(f"Generated token: {token}")  # Debug log untuk token
+
+    response = client.post(f'/auth/reset-password/{token}', data={
+        'password': 'newpassword123'
     }, follow_redirects=True)
 
     assert response.status_code == 200
-    assert b'An email has been sent with instructions to reset your password.' in response.data
+    assert b'Your password has been updated. You can now log in.' in response.data
 
 def test_reset_password(client, create_user, app):
     """Menguji proses reset password."""

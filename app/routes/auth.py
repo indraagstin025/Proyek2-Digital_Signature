@@ -5,6 +5,7 @@ from app.extensions import db
 from itsdangerous import URLSafeTimedSerializer
 from flask_mail import Message
 from app.extensions import mail
+from itsdangerous import BadSignature, SignatureExpired
 
 def generate_token(email, secret_key, salt):
     serializer = URLSafeTimedSerializer(secret_key)
@@ -14,7 +15,9 @@ def verify_token(token, secret_key, salt, max_age):
     serializer = URLSafeTimedSerializer(secret_key)
     try:
         return serializer.loads(token, salt=salt, max_age=max_age)
-    except:
+    except SignatureExpired:
+        return 'expired'
+    except BadSignature:
         return None
 
 def send_reset_email(email, reset_url, sender):
@@ -92,14 +95,17 @@ def forgot_password():
 @auth_bp.route('/reset-password/<token>', methods=['GET', 'POST'])
 def reset_password(token):
     email = verify_token(
-        token, 
-        current_app.config['SECRET_KEY'], 
-        current_app.config['PASSWORD_RESET_SALT'], 
+        token,
+        current_app.config['SECRET_KEY'],
+        current_app.config['PASSWORD_RESET_SALT'],
         current_app.config['PASSWORD_RESET_MAX_AGE']
     )
 
-    if not email:
-        flash('The reset link is invalid or has expired.', 'danger')
+    if email == 'expired':
+        flash('The reset link has expired.', 'danger')
+        return redirect(url_for('auth.forgot_password'))
+    elif not email:
+        flash('The reset link is invalid.', 'danger')
         return redirect(url_for('auth.forgot_password'))
 
     if request.method == 'POST':
