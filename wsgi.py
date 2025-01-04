@@ -1,8 +1,11 @@
 import sys
 import os
 
-# Tambahkan path aplikasi ke sys.path
+# Tambahkan path ke sistem
 sys.path.insert(0, os.path.dirname(__file__))
 
-# Impor aplikasi Flask Anda
-from app import app as application  # Sesuaikan nama package 'app' dengan folder aplikasi Anda
+# Import create_app dari app
+from app import create_app
+
+# Buat instance aplikasi
+application = create_app()
