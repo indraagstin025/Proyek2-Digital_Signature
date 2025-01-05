@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Dokumen</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Upload Dokumen</h1>
+
+        <!-- Menampilkan pesan flash jika ada -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <ul class="flashes">
+                    {% for category, message in messages %}
+                        <li class="{{ category }}">{{ message }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Form upload file -->
+        <form action="{{ url_for('document.upload_document') }}" method="post" enctype="multipart/form-data">
+            <label for="file">Pilih Dokumen (PDF, DOCX):</label>
+            <input type="file" id="file" name="file" accept=".pdf, .docx" required>
+            
+            <!-- Menambahkan informasi ukuran file maksimal -->
+            <p>Maksimal ukuran file: 15 MB</p>
+
+            <button type="submit">Upload</button>
+        </form>
+    </div>
+</body>
+</html>

@@ -5,6 +5,10 @@ from flask import url_for
 from app import create_app, db
 from app.models import Document, User
 from io import BytesIO
+from datetime import datetime
+from pytest_mock import mocker
+
+
 
 
 UPLOAD_FOLDER = os.path.join('app', 'static', 'uploads')
@@ -118,6 +122,67 @@ def test_view_document(test_client, login_test_user, cleanup_upload_folder):
         view_response = test_client.get(f'/documents/document/{document.id}')
         assert view_response.status_code == 200, f"Unexpected status code: {view_response.status_code}"
         assert b"This is a test file for viewing" in view_response.data
+          
+class MockUser:
+    """Mock class for user."""
+    def __init__(self, id):
+        self.id = id
+
+def mock_user(user_id):
+    """Return a mock user."""
+    return MockUser(user_id)
+
+
+def test_list_documents(test_client, login_test_user, mocker):
+    """
+    Test untuk memastikan endpoint /documents menampilkan daftar dokumen yang benar.
+    """
+    # Mock pengguna saat ini
+    mock_user_id = 1
+    mocker.patch('flask_login.utils._get_user', return_value=mock_user(mock_user_id))
+
+    # Mock data dokumen
+    mock_documents = [
+        Document(
+            id=1,
+            user_id=mock_user_id,
+            filename="document1.pdf",
+            filepath="/path/to/document1.pdf",
+            file_hash="hash1",
+            uploaded_at=datetime(2025, 1, 5, 14, 30, 45),
+            status="pending",
+        ),
+        Document(
+            id=2,
+            user_id=mock_user_id,
+            filename="document2.docx",
+            filepath="/path/to/document2.docx",
+            file_hash="hash2",
+            uploaded_at=datetime(2025, 1, 5, 14, 0, 0),
+            status="approved",
+        ),
+    ]
+
+    # Mock query database
+    with test_client.application.app_context():  # Pastikan berada dalam konteks aplikasi
+        mocker.patch.object(Document.query, 'filter_by', return_value=mocker.Mock(
+            order_by=mocker.Mock(return_value=mocker.Mock(all=lambda: mock_documents))
+        ))
+
+        # Hit endpoint
+        response = test_client.get('/documents')
+
+        # Pastikan status response 200
+        assert response.status_code == 200
+
+        # Periksa apakah dokumen tampil di template
+        response_data = response.data.decode('utf-8')
+        assert "document1.pdf" in response_data
+        assert "document2.docx" in response_data
+        assert "05-01-2025 14:30:45" in response_data
+        assert "05-01-2025 14:00:00" in response_data
+        assert "pending" in response_data
+        assert "approved" in response_data
 
 
 

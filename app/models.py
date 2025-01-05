@@ -94,7 +94,7 @@ class Document(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     filename = db.Column(db.String(255), nullable=False)
     filepath = db.Column(db.String(500), nullable=False)
-    file_hash = db.Column(db.String(64), unique=True, nullable=False)
+    file_hash = db.Column(db.String(64), nullable=False)
     uploaded_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), nullable=False)  # Perbaiki ke timezone.utc
     status = db.Column(db.String(50), default='pending', nullable=False)
     

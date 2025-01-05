@@ -1,12 +1,12 @@
 import os
-from flask import Blueprint, request, redirect, url_for, render_template, send_from_directory, flash
+from flask import Blueprint, request, redirect, url_for, render_template, flash
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 from werkzeug.exceptions import NotFound
 from app.models import Document
 from app import db
 import mimetypes
-from sqlalchemy.orm.exc import NoResultFound
+import hashlib
 from flask import send_file
 
 UPLOAD_FOLDER = os.path.abspath(os.path.join('app', 'static', 'uploads'))
@@ -16,7 +16,6 @@ MAX_FILE_SIZE_MB = 15
 
 # Blueprint untuk dokumentasi
 document_bp = Blueprint('document', __name__)
-
 
 def create_upload_folder_if_not_exists():
     """Membuat folder upload jika belum ada."""
@@ -29,8 +28,6 @@ def create_upload_folder_if_not_exists():
     except OSError as e:
         print(f"[DEBUG] Error creating folder: {e}")
         raise RuntimeError(f"Gagal membuat folder upload: {str(e)}")
-
-
 
 def allowed_file(filename):
     """Memeriksa apakah ekstensi file sesuai dengan yang diperbolehkan."""
@@ -45,13 +42,21 @@ def allowed_file(filename):
         and mimetype in allowed_mimetypes
     )
 
-
 def file_size_valid(file):
     """Memeriksa apakah ukuran file sesuai batas maksimal."""
     file.seek(0, os.SEEK_END)
     size_mb = file.tell() / (1024 * 1024)
     file.seek(0)
     return size_mb <= MAX_FILE_SIZE_MB
+
+def generate_file_hash(file):
+    """Menghasilkan hash SHA256 dari file."""
+    hash_sha256 = hashlib.sha256()
+    file.seek(0)  # Pastikan untuk memulai pembacaan file dari awal
+    for chunk in iter(lambda: file.read(4096), b""):
+        hash_sha256.update(chunk)
+    return hash_sha256.hexdigest()
+
 
 def save_file(file):
     create_upload_folder_if_not_exists()
@@ -65,7 +70,6 @@ def save_file(file):
         raise RuntimeError(f"Gagal menyimpan file: {str(e)}")
     return filename
 
-
 @document_bp.route('/upload', methods=['GET', 'POST'])
 @login_required
 def upload_document():
@@ -75,26 +79,38 @@ def upload_document():
 
         if file and allowed_file(file.filename):
             print(f"[DEBUG] File received: {file.filename}")
+            
+            # Cek ukuran file
             if not file_size_valid(file):
                 flash(f'File terlalu besar. Maksimal {MAX_FILE_SIZE_MB}MB.', 'error')
                 return redirect(request.url)
 
             try:
-                # Simpan file
+                # Simpan file terlebih dahulu
                 filename = save_file(file)
 
-                # Buat entry dokumen di database
+                # Generate hash file
+                file_hash = generate_file_hash(file)
+                print(f"[DEBUG] Generated file hash: {file_hash}")
+
+                # Cek apakah ada dokumen dengan hash yang sama
+                existing_document = Document.query.filter_by(file_hash=file_hash).first()
+                if existing_document:
+                    flash('File dengan isi yang sama sudah ada di database.', 'error')
+                    return redirect(request.url)
+
+                # Buat entri dokumen baru di database
                 new_document = Document(
                     user_id=current_user.id,
                     filename=filename,
                     filepath=os.path.join(UPLOAD_FOLDER, filename),
-                    file_hash=Document.is_duplicate(file.read()),  # Hitung hash file
+                    file_hash=file_hash,  # Menggunakan hash file yang unik
                 )
                 db.session.add(new_document)
                 db.session.commit()
 
                 flash('Dokumen berhasil di-upload!', 'success')
-                return redirect(url_for('document.view_document', doc_id=new_document.id))
+                return redirect(url_for('document.list_documents'))  # Mengarahkan ke halaman daftar dokumen
             except RuntimeError as e:
                 flash(f'Error sistem file: {str(e)}', 'error')
                 return redirect(request.url)
@@ -125,3 +141,16 @@ def view_document(doc_id):
     # Kirim file
     return send_file(file_path, as_attachment=False)
 
+@document_bp.route('/documents', methods=['GET'])
+@login_required
+def list_documents():
+    """Route untuk menampilkan daftar dokumen pengguna."""
+    # Ambil semua dokumen milik pengguna saat ini, diurutkan berdasarkan waktu upload terbaru
+    user_documents = (
+        Document.query.filter_by(user_id=current_user.id)
+        .order_by(Document.uploaded_at.desc())
+        .all()
+    )
+
+    # Kirim data dokumen ke template
+    return render_template('list_documents.html', documents=user_documents)
