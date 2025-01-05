@@ -1,3 +1,4 @@
+import os
 from flask import Flask
 from flask_login import LoginManager
 from dotenv import load_dotenv
@@ -13,7 +14,9 @@ pymysql.install_as_MySQLdb()
 
 # Fungsi untuk membuat aplikasi
 def create_app(config_name='default'):
-    app = Flask(__name__)
+    app = Flask(__name__,
+                template_folder=os.path.join(os.getcwd(), 'app', 'templates'),
+                static_folder=os.path.join(os.getcwd(), 'app', 'static'))
     
     # Konfigurasi aplikasi berdasarkan environment
     if config_name == 'testing':
