@@ -160,29 +160,51 @@ def list_documents():
 def delete_document(doc_id):
     """Route untuk menghapus dokumen berdasarkan ID."""
     try:
-        # Cari dokumen berdasarkan ID
+        # Ambil dokumen berdasarkan ID, jika tidak ada, akan memunculkan 404
         document = Document.query.get_or_404(doc_id)
+        print(f"[DEBUG] Current user ID: {current_user.id}, Document owner ID: {document.user_id}")
 
-        # Pastikan hanya pengguna yang memiliki dokumen ini yang dapat menghapusnya
+        # Periksa apakah pengguna memiliki izin untuk menghapus dokumen
         if document.user_id != current_user.id:
             flash('Anda tidak memiliki izin untuk menghapus dokumen ini.', 'error')
+            print("[DEBUG] Permission denied: Current user is not the owner.")
             return redirect(url_for('document.list_documents'))
 
-        # Hapus file dari sistem file
-        file_path = os.path.join(UPLOAD_FOLDER, document.filename)
-        if os.path.exists(file_path):
-            os.remove(file_path)
-            print(f"[DEBUG] File deleted: {file_path}")  # Debugging
-        else:
-            print(f"[DEBUG] File not found for deletion: {file_path}")  # Debugging
+        # Fungsi untuk menghapus file dari sistem file
+        def delete_file(filepath):
+            try:
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+                    print(f"[DEBUG] File deleted successfully: {filepath}")
+                else:
+                    print(f"[DEBUG] File not found: {filepath}")
+                    flash('File tidak ditemukan, tetapi entri akan dihapus dari database.', 'info')
+            except Exception as file_error:
+                print(f"[DEBUG] Error deleting file: {file_error}")
+                flash(f'Gagal menghapus file dari sistem: {file_error}', 'error')
+                return False
+            return True
 
-        # Hapus entri dokumen dari database
+        # Hapus file dari sistem jika ada
+        if not delete_file(document.filepath):
+            # Jika gagal menghapus file, tetap hapus entri dari database
+            db.session.delete(document)
+            db.session.commit()
+            print(f"[DEBUG] Document deleted from database (file error): {doc_id}")
+            flash('Dokumen berhasil dihapus, meskipun file tidak ditemukan.', 'success')
+            return redirect(url_for('document.list_documents'))
+
+        # Hapus dokumen dari database
         db.session.delete(document)
         db.session.commit()
-
+        print(f"[DEBUG] Document deleted from database: {doc_id}")
         flash('Dokumen berhasil dihapus.', 'success')
-    except Exception as e:
-        db.session.rollback()
-        flash(f'Gagal menghapus dokumen: {str(e)}', 'error')
 
+    except Exception as e:
+        # Tangani error saat penghapusan dan rollback transaksi
+        db.session.rollback()
+        print(f"[DEBUG] Error during deletion: {e}")
+        flash(f'Gagal menghapus dokumen: {e}', 'error')
+
+    # Redirect kembali ke halaman daftar dokumen
     return redirect(url_for('document.list_documents'))
