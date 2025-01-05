@@ -154,3 +154,35 @@ def list_documents():
 
     # Kirim data dokumen ke template
     return render_template('list_documents.html', documents=user_documents)
+
+@document_bp.route('/document/delete/<int:doc_id>', methods=['POST'])
+@login_required
+def delete_document(doc_id):
+    """Route untuk menghapus dokumen berdasarkan ID."""
+    try:
+        # Cari dokumen berdasarkan ID
+        document = Document.query.get_or_404(doc_id)
+
+        # Pastikan hanya pengguna yang memiliki dokumen ini yang dapat menghapusnya
+        if document.user_id != current_user.id:
+            flash('Anda tidak memiliki izin untuk menghapus dokumen ini.', 'error')
+            return redirect(url_for('document.list_documents'))
+
+        # Hapus file dari sistem file
+        file_path = os.path.join(UPLOAD_FOLDER, document.filename)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            print(f"[DEBUG] File deleted: {file_path}")  # Debugging
+        else:
+            print(f"[DEBUG] File not found for deletion: {file_path}")  # Debugging
+
+        # Hapus entri dokumen dari database
+        db.session.delete(document)
+        db.session.commit()
+
+        flash('Dokumen berhasil dihapus.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Gagal menghapus dokumen: {str(e)}', 'error')
+
+    return redirect(url_for('document.list_documents'))

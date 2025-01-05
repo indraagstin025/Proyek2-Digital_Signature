@@ -1,38 +1,191 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard</title>
-    <!-- Prevent caching -->
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Expires" content="0" />
+    <title>Platform Tanda Tangan Digital</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome CDN -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet">
+
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: #ffd700;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f0f0f0;
+        }
+
+        /* Fade-in Animation */
+        .fade-in {
+            animation: fadeIn 1.5s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            0% {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Hamburger Menu Animation */
+        .menu-enter {
+            opacity: 0;
+            transform: scale(0.95);
+            transition: all 0.3s ease-in-out;
+        }
+
+        .menu-enter-active {
+            opacity: 1;
+            transform: scale(1);
+        }
+    </style>
 </head>
-<body>
-    <h1>Welcome to Your Dashboard</h1>
-    <p>Hello, {{ current_user.username }}!</p>
+<body class="bg-gray-100 font-sans relative">
+ <!-- Flash Messages -->
+ {% with messages = get_flashed_messages(with_categories=true) %}
+ {% if messages %}
+     <div class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50">
+         {% for category, message in messages %}
+             <div class="bg-{{ 'green' if category == 'success' else 'red' }}-500 text-white px-4 py-2 rounded-lg shadow-lg fade-in">
+                 {{ message }}
+             </div>
+         {% endfor %}
+     </div>
+ {% endif %}
+{% endwith %}
+    <!-- Hamburger Menu for Logout -->
+    <div class="absolute top-4 right-4 z-50">
+        <!-- Hamburger Icon -->
+        <button 
+            id="hamburger" 
+            type="button" 
+            class="text-gray-700 bg-gray-200 p-3 rounded-full shadow-lg focus:outline-none hover:bg-gray-300"
+            aria-label="Buka menu navigasi"
+            title="Buka menu navigasi"
+        >
+            <i class="fas fa-bars text-2xl" aria-hidden="true"></i>
+        </button>
+    </div>
+    
 
-   
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="alert alert-{{ category }}">{{ message }}</div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
+    <!-- Floating Menu -->
+    <div id="floatingMenu" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 flex justify-center items-center z-50">
+        <div class="bg-white rounded-lg shadow-lg p-6 w-64 text-center transform menu-enter">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Menu</h2>
+            <button 
+                id="logoutButton" 
+                class="w-full bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition"
+            >
+                <i class="fas fa-sign-out-alt mr-2"></i> Logout
+            </button>
+            <button 
+                id="closeMenu" 
+                class="mt-4 w-full bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 transition"
+            >
+                <i class="fas fa-times mr-2"></i> Tutup
+            </button>
+        </div>
+    </div>
 
-    <a href="{{ url_for('auth.logout') }}">Logout</a>
-    <a href="{{ url_for('document.upload_document') }}">Upload</a>
+    <!-- Kontainer Utama -->
+    <div class="container mx-auto p-4 md:p-8">
 
+        <!-- Bagian Header -->
+        <div class="bg-white p-6 rounded-lg shadow-lg mb-6 fade-in">
+            <!-- Judul dan Sambutan -->
+            <div class="text-center">
+                <h1 class="text-3xl font-bold text-gray-800 flex items-center justify-center">
+                    <!-- Ikon -->
+                    <i class="fas fa-file-signature text-yellow-500 mr-3"></i>
+                    Platform Tanda Tangan Digital
+                </h1>
+                <p class="text-gray-600 mt-2">Halo, <span class="font-semibold text-yellow-500">{{ current_user.username }}</span>!</p>
+            </div>
+        </div>
+
+        <!-- Informasi Tentang Website -->
+        <div class="bg-white p-6 rounded-lg shadow-lg mb-6 fade-in">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Tentang Kami</h2>
+            <p class="text-gray-700 leading-relaxed text-sm text-justify">
+                Tandatangani dokumen Anda dengan cepat, aman, dan tanpa ribet. Solusi modern untuk kebutuhan Anda.
+            </p>
+        </div>
+
+        <!-- Fitur Utama -->
+        <div class="bg-white p-6 rounded-lg shadow-lg mb-6 fade-in">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Fitur Kami</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="flex items-center bg-gray-100 p-4 rounded-lg shadow transition-transform duration-300">
+                    <i class="fas fa-lock text-yellow-500 text-4xl mr-4"></i>
+                    <div>
+                        <h3 class="font-semibold text-lg">Aman</h3>
+                        <p class="text-sm text-gray-600">Data Anda terlindungi dengan enkripsi terbaik.</p>
+                    </div>
+                </div>
+                <div class="flex items-center bg-gray-100 p-4 rounded-lg shadow transition-transform duration-300">
+                    <i class="fas fa-paper-plane text-yellow-500 text-4xl mr-4"></i>
+                    <div>
+                        <h3 class="font-semibold text-lg">Cepat</h3>
+                        <p class="text-sm text-gray-600">Tandatangani dokumen dalam hitungan detik.</p>
+                    </div>
+                </div>
+                <div class="flex items-center bg-gray-100 p-4 rounded-lg shadow transition-transform duration-300">
+                    <i class="fas fa-globe text-yellow-500 text-4xl mr-4"></i>
+                    <div>
+                        <h3 class="font-semibold text-lg">Global</h3>
+                        <p class="text-sm text-gray-600">Akses dari mana saja, kapan saja.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tombol Unggah -->
+            <div class="mt-6 text-center">
+                 <a href="{{ url_for('document.upload_document') }}" 
+                    class="flex items-center justify-center text-white px-6 py-3 rounded-lg shadow-md transition-transform bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 w-full sm:w-auto mx-auto">
+                     <i class="fas fa-upload mr-2"></i> Unggah Dokumen
+                </a>
+</div>
+
+        </div>
+    </div>
+
+    <!-- JavaScript -->
     <script>
-        
-        window.history.pushState(null, "", window.location.href);
+        const hamburger = document.getElementById('hamburger');
+        const floatingMenu = document.getElementById('floatingMenu');
+        const closeMenu = document.getElementById('closeMenu');
+        const logoutButton = document.getElementById('logoutButton');
 
-        
-        window.onpopstate = function () {
-            window.history.pushState(null, "", window.location.href);
-        };
+        // Show Floating Menu
+        hamburger.addEventListener('click', () => {
+            floatingMenu.classList.remove('hidden');
+            floatingMenu.querySelector('.menu-enter').classList.add('menu-enter-active');
+        });
+
+        // Close Menu
+        closeMenu.addEventListener('click', () => {
+            floatingMenu.classList.add('hidden');
+        });
+
+        // Confirm Logout
+        logoutButton.addEventListener('click', () => {
+            const confirmLogout = confirm('Apakah Anda yakin ingin logout?');
+            if (confirmLogout) {
+                // Redirect to logout route
+                window.location.href = "{{ url_for('auth.logout') }}";
+            }
+        });
     </script>
 </body>
 </html>

@@ -1,45 +1,87 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Daftar Dokumen</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
 </head>
-<body>
-    <div class="container">
-        <h1>Daftar Dokumen Anda</h1>
+<body class="bg-gray-100 font-sans">
+    <div class="container mx-auto p-4 md:p-8">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center md:text-left">Daftar Dokumen Anda</h1>
 
-        <!-- Menampilkan pesan flash jika ada -->
+        <!-- Menampilkan Pesan Flash -->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                <ul class="flashes">
+                <div class="space-y-4 mb-6">
                     {% for category, message in messages %}
-                        <li class="{{ category }}">{{ message }}</li>
+                        <div class="p-4 text-sm text-white rounded-lg {{ 'bg-green-500' if category == 'success' else 'bg-red-500' }}">
+                            {{ message }}
+                        </div>
                     {% endfor %}
-                </ul>
+                </div>
             {% endif %}
         {% endwith %}
 
-        <!-- Jika tidak ada dokumen, beri informasi bahwa tidak ada dokumen yang di-upload -->
+        <!-- Jika Tidak Ada Dokumen -->
         {% if not documents %}
-            <p>Anda belum meng-upload dokumen apapun.</p>
+            <p class="text-gray-700 text-center md:text-left">Anda belum meng-upload dokumen apapun.</p>
         {% else %}
-            <ul>
-                <!-- Menampilkan daftar dokumen yang telah di-upload -->
-                {% for document in documents %}
-                    <li>
-                        <a href="{{ url_for('document.view_document', doc_id=document.id) }}">
-                            {{ document.filename }}
-                        </a> - 
-                        {{ document.uploaded_at.strftime('%d %B %Y, %H:%M') }} <!-- Format tanggal -->
-                    </li>
-                {% endfor %}
-            </ul>
+            <!-- Tabel Daftar Dokumen -->
+            <div class="overflow-x-auto bg-white shadow-md rounded-lg">
+                <table class="min-w-full divide-y divide-gray-200 table-auto">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama Dokumen</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal Upload</th>
+                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for document in documents %}
+                            <tr>
+                                <!-- Nama Dokumen -->
+                                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                                    <a href="{{ url_for('document.view_document', doc_id=document.id) }}" class="text-blue-500 hover:underline">
+                                        {{ document.filename }}
+                                    </a>
+                                </td>
+                                <!-- Tanggal Upload -->
+                                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                    {{ document.uploaded_at.strftime('%d %B %Y, %H:%M') }}
+                                </td>
+                                <!-- Tombol Aksi -->
+                                <td class="px-4 py-3 whitespace-nowrap text-center">
+                                    <!-- Tombol View -->
+                                    <a href="{{ url_for('document.view_document', doc_id=document.id) }}" 
+                                       class="text-blue-500 hover:text-blue-700 mx-2" 
+                                       title="Lihat Dokumen">
+                                        <i class="fas fa-eye text-lg"></i>
+                                    </a>
+                                    <!-- Tombol Delete -->
+                                    <form action="{{ url_for('document.delete_document', doc_id=document.id) }}" method="post" class="inline-block">
+                                        <button type="submit" class="text-red-500 hover:text-red-700 mx-2" title="Hapus Dokumen"
+                                                onclick="return confirm('Apakah Anda yakin ingin menghapus dokumen ini?');">
+                                            <i class="fas fa-trash-alt text-lg"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         {% endif %}
 
-        <!-- Link untuk kembali ke halaman upload dokumen -->
-        <a href="{{ url_for('document.upload_document') }}">Upload Dokumen Baru</a>
+        <!-- Link ke Halaman Upload -->
+        <div class="mt-6 text-center md:text-left">
+            <a href="{{ url_for('document.upload_document') }}" 
+               class="inline-block px-6 py-2 bg-yellow-500 text-white font-semibold text-sm rounded-lg shadow-md hover:bg-yellow-600 transition">
+                <i class="fas fa-upload mr-2"></i> Upload Dokumen Baru
+            </a>
+        </div>
     </div>
 </body>
 </html>

@@ -6,6 +6,7 @@ from app.extensions import init_extensions, db, mail
 from app.routes import register_blueprints
 import pymysql
 
+
 # Load environment variables
 load_dotenv()
 

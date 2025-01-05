@@ -1,6 +1,7 @@
 import os
 import pytest
 import time
+import random
 from flask import url_for
 from app import create_app, db
 from app.models import Document, User
@@ -13,11 +14,33 @@ from pytest_mock import mocker
 
 UPLOAD_FOLDER = os.path.join('app', 'static', 'uploads')
 
+@pytest.fixture
+def create_user():
+    """Fixture untuk membuat pengguna."""
+    def _create_user(username, email, password):
+        # Tambahkan pengecekan untuk memastikan pengguna unik
+        existing_user = User.query.filter_by(username=username).first()
+        if existing_user:
+            return existing_user
+
+        user = User(username=username, email=email)
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+        return user
+
+    return _create_user
+
+
 
 @pytest.fixture(scope='module')
 def test_client():
-    """Setup Flask test client."""
     app = create_app({'TESTING': True, 'SQLALCHEMY_DATABASE_URI': 'sqlite:///:memory:'})
+    app.config.update({
+        'SERVER_NAME': 'localhost',
+        'APPLICATION_ROOT': '/',
+        'PREFERRED_URL_SCHEME': 'http',
+    })
     client = app.test_client()
 
     with app.app_context():
@@ -133,56 +156,60 @@ def mock_user(user_id):
     return MockUser(user_id)
 
 
-def test_list_documents(test_client, login_test_user, mocker):
+def test_list_documents(test_client, create_user, mocker):
     """
-    Test untuk memastikan endpoint /documents menampilkan daftar dokumen yang benar.
+    Test untuk memastikan endpoint /documents menampilkan daftar dokumen pengguna dengan benar.
     """
-    # Mock pengguna saat ini
-    mock_user_id = 1
-    mocker.patch('flask_login.utils._get_user', return_value=mock_user(mock_user_id))
+    with test_client.application.app_context():
+        # Buat pengguna uji dengan username unik
+        test_user = create_user(f'testuser_{datetime.now().timestamp()}', f'testuser_{datetime.now().timestamp()}@example.com', 'password123')
 
-    # Mock data dokumen
-    mock_documents = [
-        Document(
-            id=1,
-            user_id=mock_user_id,
-            filename="document1.pdf",
-            filepath="/path/to/document1.pdf",
+        # Mock pengguna yang sedang login
+        mocker.patch('flask_login.utils._get_user', return_value=test_user)
+
+        # Tambahkan dokumen ke database
+        document1 = Document(
+            user_id=test_user.id,
+            filename="test_document1.pdf",
+            filepath="/path/to/test_document1.pdf",
             file_hash="hash1",
-            uploaded_at=datetime(2025, 1, 5, 14, 30, 45),
-            status="pending",
-        ),
-        Document(
-            id=2,
-            user_id=mock_user_id,
-            filename="document2.docx",
-            filepath="/path/to/document2.docx",
+            uploaded_at=datetime(2025, 1, 6, 10, 0, 0),
+        )
+        document2 = Document(
+            user_id=test_user.id,
+            filename="test_document2.docx",
+            filepath="/path/to/test_document2.docx",
             file_hash="hash2",
-            uploaded_at=datetime(2025, 1, 5, 14, 0, 0),
-            status="approved",
-        ),
-    ]
-
-    # Mock query database
-    with test_client.application.app_context():  # Pastikan berada dalam konteks aplikasi
-        mocker.patch.object(Document.query, 'filter_by', return_value=mocker.Mock(
-            order_by=mocker.Mock(return_value=mocker.Mock(all=lambda: mock_documents))
-        ))
+            uploaded_at=datetime(2025, 1, 6, 9, 0, 0),
+        )
+        db.session.add_all([document1, document2])
+        db.session.commit()
 
         # Hit endpoint
-        response = test_client.get('/documents')
+        response = test_client.get(url_for('document.list_documents'))
 
         # Pastikan status response 200
         assert response.status_code == 200
 
-        # Periksa apakah dokumen tampil di template
+        # Periksa apakah nama dokumen muncul di data respons HTML
         response_data = response.data.decode('utf-8')
-        assert "document1.pdf" in response_data
-        assert "document2.docx" in response_data
-        assert "05-01-2025 14:30:45" in response_data
-        assert "05-01-2025 14:00:00" in response_data
-        assert "pending" in response_data
-        assert "approved" in response_data
+        assert "test_document1.pdf" in response_data
+        assert "test_document2.docx" in response_data
+
+        # Periksa apakah tanggal upload ditampilkan dengan format yang benar
+        assert "06 January 2025, 10:00" in response_data
+        assert "06 January 2025, 09:00" in response_data
+
+        # Periksa apakah tombol untuk melihat dan menghapus dokumen ada di respons
+        assert url_for('document.view_document', doc_id=document1.id) in response_data
+        assert url_for('document.delete_document', doc_id=document1.id) in response_data
+        assert url_for('document.view_document', doc_id=document2.id) in response_data
+        assert url_for('document.delete_document', doc_id=document2.id) in response_data
+
+
+
+
+
 
 
 
