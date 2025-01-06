@@ -142,3 +142,14 @@ class Document(db.Model):
         except IntegrityError:
             db.session.rollback()
             raise ValueError("Terjadi kesalahan saat menyimpan dokumen.")
+        
+
+
+class Signature(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    document = db.Column(db.Text, nullable=False)
+    token = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)  # Ubah ini
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
+

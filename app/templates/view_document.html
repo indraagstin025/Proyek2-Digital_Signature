@@ -8,59 +8,18 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        #pdf-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100%;
-            overflow: auto;
-            background-color: #f4f4f9;
-        }
-
-        canvas {
-            max-width: 100%;
-            max-height: 100%;
-            border: 1px solid #ddd;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-        }
-
-        .tab-btn.active {
-            color: #2563eb;
-            border-bottom: 2px solid #2563eb;
-        }
-
-        .tab-content {
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
-        }
-
-        .loading {
-            display: none;
-            text-align: center;
-            padding: 20px;
-        }
-
-        .loading.active {
-            display: block;
-        }
-    </style>
 </head>
 
-<body class="bg-gray-50 h-screen flex">
+<body class="bg-gray-100 h-screen flex">
 
-    <!-- Modal Tanda Tangan -->
     <div id="signature-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center hidden z-50">
-        <div class="bg-white rounded-lg shadow-lg max-w-2xl w-full">
-            <div class="flex justify-between items-center border-b p-4">
+        <div class="bg-white rounded-lg shadow-lg max-w-2xl w-full p-4">
+            <div class="flex justify-between items-center border-b pb-4">
                 <h2 class="text-xl font-bold">Buat Tanda Tangan</h2>
                 <button id="close-modal" class="text-gray-600 hover:text-gray-900">&times;</button>
             </div>
 
-            <div class="p-4">
+            <div class="mt-4">
                 <div class="flex border-b">
                     <button id="tab-gambar" class="tab-btn active p-2 text-blue-600 border-b-2 border-blue-600">Gambar</button>
                     <button id="tab-ketik" class="tab-btn p-2 text-gray-600 hover:text-blue-600">Ketik</button>
@@ -70,7 +29,7 @@
                 <div id="tab-content" class="mt-4">
                     <div id="content-gambar" class="tab-content active">
                         <canvas id="signature-canvas" class="border rounded w-full h-48"></canvas>
-                        <div class="flex justify-between mt-2">
+                        <div class="flex justify-end mt-2">
                             <button id="clear-canvas" class="bg-red-500 text-white px-4 py-2 rounded">Hapus</button>
                         </div>
                     </div>
@@ -86,14 +45,14 @@
                 </div>
             </div>
 
-            <div class="p-4 border-t flex justify-end">
+            <div class="border-t pt-4 mt-4 flex justify-end">
                 <button id="save-signature" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Simpan</button>
                 <button id="close-modal-footer" class="ml-2 bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400">Batal</button>
             </div>
         </div>
     </div>
 
-    <div class="w-64 bg-gray-900 text-white flex flex-col">
+    <div class="w-64 md:w-1/4 bg-gray-800 text-white flex flex-col">
         <div class="p-4 text-2xl font-bold text-center border-b border-gray-700">Tanda Tangan</div>
         <ul class="flex-1 space-y-2 p-4">
             <li id="open-signature-modal" class="flex items-center space-x-2 cursor-pointer hover:bg-gray-700 p-2 rounded">
@@ -108,14 +67,12 @@
 
     <div class="flex-1 flex flex-col">
         <div class="p-4 bg-white shadow-md">
-            <h1 class="text-xl font-bold">File PDF: {{ document.filename }}</h1>
+            <h1 class="text-xl font-bold">File PDF</h1>
             <p><strong>Nama File:</strong> {{ document.filename }}</p>
-            <p><strong>Lokasi File:</strong> {{ document.filepath }}</p>
-            <p><strong>Unggah Oleh:</strong> {{ document.user_id }}</p>
         </div>
 
-        <div id="pdf-container" class="flex-1 p-4">
-            <canvas id="pdf-render" class="bg-white rounded"></canvas>
+        <div id="pdf-container" class="flex-1 p-4 overflow-y-auto">
+            <canvas id="pdf-render" class="bg-white rounded shadow-md mx-auto"></canvas>
         </div>
 
         <div class="p-4 bg-white shadow-md flex justify-between items-center">
@@ -131,54 +88,57 @@
         </div>
     </div>
 
-    <div id="loading" class="loading">
-        <div class="spinner-border text-blue-600" role="status">
-            <span class="sr-only">Loading...</span>
+    <div id="loading" class="loading fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white p-4 rounded-lg shadow-lg text-center">
+            <div class="spinner-border animate-spin inline-block w-8 h-8 border-4 rounded-full text-blue-600" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Menunggu tanda tangan disimpan...</p>
         </div>
-        <p>Menunggu tanda tangan disimpan...</p>
     </div>
 
     <script>
-        const url = "{{ url_for('document_bp.view_document', doc_id=document.id) }}";
+        const url = "{{ url_for('static', filename='uploads/' + document.filename) }}";
+
         const pdfjsLib = window['pdfjs-dist/build/pdf'];
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-    
+
         let pdfDoc = null,
             pageNum = 1,
             pageIsRendering = false,
             pageNumPending = null;
-    
+
         let scale = 1.5;
-    
+
         const pdfCanvas = document.getElementById('pdf-render'),
             pdfCtx = pdfCanvas.getContext('2d');
-    
+
         const renderPage = num => {
             pageIsRendering = true;
-    
+
             pdfDoc.getPage(num).then(page => {
                 const viewport = page.getViewport({ scale });
                 pdfCanvas.height = viewport.height;
                 pdfCanvas.width = viewport.width;
-    
+
                 const renderCtx = {
                     canvasContext: pdfCtx,
                     viewport
                 };
-    
+
                 page.render(renderCtx).promise.then(() => {
                     pageIsRendering = false;
-    
+
                     if (pageNumPending !== null) {
                         renderPage(pageNumPending);
                         pageNumPending = null;
                     }
                 });
-    
+
                 document.getElementById('page-num').textContent = num;
             });
         };
-    
+
         const queueRenderPage = num => {
             if (pageIsRendering) {
                 pageNumPending = num;
@@ -186,30 +146,28 @@
                 renderPage(num);
             }
         };
-    
+
         const onPrevPage = () => {
             if (pageNum <= 1) return;
             pageNum--;
             queueRenderPage(pageNum);
         };
-    
+
         const onNextPage = () => {
             if (pageNum >= pdfDoc.numPages) return;
             pageNum++;
             queueRenderPage(pageNum);
         };
-    
+
         pdfjsLib.getDocument(url).promise.then(pdfDoc_ => {
             pdfDoc = pdfDoc_;
             document.getElementById('page-count').textContent = pdfDoc.numPages;
             renderPage(pageNum);
         });
-    
+
         document.getElementById('prev').addEventListener('click', onPrevPage);
         document.getElementById('next').addEventListener('click', onNextPage);
     </script>
-    
-
 </body>
 
 </html>

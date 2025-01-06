@@ -124,22 +124,27 @@ def upload_document():
     return render_template('upload_document.html')
 
 
-@document_bp.route('/document/<int:doc_id>', methods=['GET'])
+@document_bp.route('/view_document/<int:doc_id>', methods=['GET'])
 @login_required
 def view_document(doc_id):
     document = Document.query.get_or_404(doc_id)
 
+    # Cek apakah pengguna yang sedang login adalah pemilik dokumen
     if document.user_id != current_user.id:
         flash('Anda tidak memiliki akses ke dokumen ini.', 'error')
         return redirect(url_for('document.upload_document'))
 
     file_path = os.path.join(UPLOAD_FOLDER, document.filename)
 
+    # Cek apakah file ada
     if not os.path.exists(file_path):
-        raise NotFound("File tidak ditemukan.")
+        flash('File tidak ditemukan di server.', 'error')
+        return redirect(url_for('document.list_documents'))
 
-    # Kirim file
-    return send_file(file_path, as_attachment=False)
+    # Kirim data untuk ditampilkan di template
+    return render_template('view_document.html', document=document)
+
+
 
 @document_bp.route('/documents', methods=['GET'])
 @login_required

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Signature</title>
+    <script>
+        async function createSignature() {
+            const documentData = document.getElementById('document').value;
+            if (!documentData) {
+                alert('Please enter document data!');
+                return;
+            }
+
+            const response = await fetch('/signature/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ document: documentData }),
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                document.getElementById('token-output').textContent = result.token;
+            } else {
+                alert(result.error || 'Failed to create signature');
+            }
+        }
+
+        async function verifySignature() {
+            const token = document.getElementById('token').value;
+            if (!token) {
+                alert('Please enter a token!');
+                return;
+            }
+
+            const response = await fetch('/signature/verify', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ token }),
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                document.getElementById('verify-output').textContent = JSON.stringify(result.payload, null, 2);
+            } else {
+                alert(result.error || 'Failed to verify signature');
+            }
+        }
+    </script>
+</head>
+<body>
+    <h1>Digital Signature</h1>
+
+    <section>
+        <h2>Create Signature</h2>
+        <textarea id="document" placeholder="Enter your document here..." rows="5" cols="50"></textarea>
+        <br>
+        <button onclick="createSignature()">Sign Document</button>
+        <h3>Generated Token</h3>
+        <pre id="token-output"></pre>
+    </section>
+
+    <hr>
+
+    <section>
+        <h2>Verify Signature</h2>
+        <textarea id="token" placeholder="Enter token here..." rows="5" cols="50"></textarea>
+        <br>
+        <button onclick="verifySignature()">Verify Token</button>
+        <h3>Verification Result</h3>
+        <pre id="verify-output"></pre>
+    </section>
+</body>
+</html>
