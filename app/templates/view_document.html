@@ -29,11 +29,6 @@
                 <span>Tanda Tangan Anda</span>
             </li>
         </ul>
-        <div class="p-4">
-            <button class="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded">
-                Selesaikan & Tanda Tangani
-            </button>
-        </div>
     </aside>
 
     <!-- Main Content -->
@@ -58,7 +53,7 @@
                 Halaman: <span id="page-num">1</span> / <span id="page-count"></span>
             </div>
             <button id="next" class="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded">
-                Halaman Berikutnya →
+                Halaman Berikutnya → 
             </button>
         </div>
     </main>
@@ -94,6 +89,7 @@
             </div>
             <div class="border-t pt-4 mt-4 flex justify-end">
                 <button id="save-signature" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Simpan</button>
+                <button id="verify-signature" class="ml-2 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Verifikasi</button>
                 <button id="close-modal-footer" class="ml-2 bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400">Batal</button>
             </div>
         </div>
@@ -111,57 +107,49 @@
 
     <!-- JavaScript -->
     <script>
-        // Sidebar dan tombol hamburger
-        const sidebar = document.getElementById("sidebar");
-        const mobileMenuBtn = document.getElementById("mobile-menu-btn");
-
-        // Toggle sidebar untuk mobile
-        mobileMenuBtn.addEventListener("click", () => {
-            sidebar.classList.toggle("-translate-x-full");
-            sidebar.classList.toggle("translate-x-0");
-        });
-
         // PDF.js Integration
-        const url = "{{ url_for('static', filename='uploads/' + document.filename) }}";
-
+        const url = "http://localhost:5000/static/uploads/{{ document.filename }}"; // Update URL to localhost path
+    
         const pdfjsLib = window["pdfjs-dist/build/pdf"];
         pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
-
+    
         let pdfDoc = null,
             pageNum = 1,
             pageIsRendering = false,
             pageNumPending = null;
-
+    
         const scale = 1.5;
         const pdfCanvas = document.getElementById("pdf-render"),
             pdfCtx = pdfCanvas.getContext("2d");
-
+    
         const renderPage = (num) => {
             pageIsRendering = true;
-
+    
             pdfDoc.getPage(num).then((page) => {
                 const viewport = page.getViewport({ scale });
                 pdfCanvas.height = viewport.height;
                 pdfCanvas.width = viewport.width;
-
+    
                 const renderCtx = {
                     canvasContext: pdfCtx,
                     viewport,
                 };
-
+    
                 page.render(renderCtx).promise.then(() => {
                     pageIsRendering = false;
-
+    
                     if (pageNumPending !== null) {
                         renderPage(pageNumPending);
                         pageNumPending = null;
                     }
                 });
-
+    
                 document.getElementById("page-num").textContent = num;
+            }).catch((error) => {
+                console.error("Error rendering page:", error);
             });
         };
-
+    
         const queueRenderPage = (num) => {
             if (pageIsRendering) {
                 pageNumPending = num;
@@ -169,28 +157,135 @@
                 renderPage(num);
             }
         };
-
+    
         const onPrevPage = () => {
             if (pageNum <= 1) return;
             pageNum--;
             queueRenderPage(pageNum);
         };
-
+    
         const onNextPage = () => {
             if (pageNum >= pdfDoc.numPages) return;
             pageNum++;
             queueRenderPage(pageNum);
         };
-
+    
         pdfjsLib.getDocument(url).promise.then((pdfDoc_) => {
             pdfDoc = pdfDoc_;
             document.getElementById("page-count").textContent = pdfDoc.numPages;
             renderPage(pageNum);
+        }).catch((error) => {
+            console.error("Error loading PDF:", error);
         });
-
+    
         document.getElementById("prev").addEventListener("click", onPrevPage);
         document.getElementById("next").addEventListener("click", onNextPage);
+    
+        // Open Signature Modal
+        document.getElementById("open-signature-modal").addEventListener("click", () => {
+            document.getElementById("signature-modal").classList.remove("hidden");
+        });
+    
+        // Close Modal
+        document.getElementById("close-modal").addEventListener("click", () => {
+            document.getElementById("signature-modal").classList.add("hidden");
+        });
+    
+        // Canvas Signature Handling
+        const signatureCanvas = document.getElementById("signature-canvas");
+        const signatureCtx = signatureCanvas.getContext("2d");
+        let drawing = false;
+    
+        signatureCanvas.addEventListener("mousedown", (e) => {
+            drawing = true;
+            signatureCtx.beginPath();
+            signatureCtx.moveTo(e.offsetX, e.offsetY);
+        });
+    
+        signatureCanvas.addEventListener("mousemove", (e) => {
+            if (!drawing) return;
+            signatureCtx.lineTo(e.offsetX, e.offsetY);
+            signatureCtx.stroke();
+        });
+    
+        signatureCanvas.addEventListener("mouseup", () => {
+            drawing = false;
+        });
+    
+        // Clear Canvas
+        document.getElementById("clear-canvas").addEventListener("click", () => {
+            signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+        });
+    
+        // Tab Handling
+        const tabBtns = document.querySelectorAll(".tab-btn");
+        const tabContents = document.querySelectorAll(".tab-content");
+    
+        tabBtns.forEach((btn, index) => {
+            btn.addEventListener("click", () => {
+                tabBtns.forEach((btn) => btn.classList.remove("active"));
+                btn.classList.add("active");
+                tabContents.forEach((content, idx) => {
+                    if (index === idx) {
+                        content.classList.remove("hidden");
+                    } else {
+                        content.classList.add("hidden");
+                    }
+                });
+            });
+        });
+    
+        document.getElementById("save-signature").addEventListener("click", () => {
+    const signatureData = signatureCanvas.toDataURL("image/png"); // Format PNG
+    document.getElementById("loading").classList.remove("hidden");
+
+    fetch('http://localhost:5000/api/sign', {
+        method: 'POST',
+        body: JSON.stringify({ data: signatureData }),
+        headers: { 'Content-Type': 'application/json' }
+    }).then(response => response.json())
+        .then(data => {
+            document.getElementById("loading").classList.add("hidden");
+            if (data.signature) {
+                alert('Tanda tangan berhasil disimpan!');
+                console.log("Signature Hex:", data.signature);
+                console.log("Message + Signature Hex:", data.message_with_signature);
+            } else {
+                alert('Gagal menyimpan tanda tangan.');
+            }
+            document.getElementById("signature-modal").classList.add("hidden");
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById("loading").classList.add("hidden");
+        });
+});
+
+    
+        // Verify Signature
+        document.getElementById("verify-signature").addEventListener("click", () => {
+    const signatureData = signatureCanvas.toDataURL("image/png");
+    const inputSignature = prompt("Masukkan tanda tangan hex untuk verifikasi:");
+
+    fetch('http://localhost:5000/api/verify', {
+        method: 'POST',
+        body: JSON.stringify({ data: signatureData, signature: inputSignature }),
+        headers: { 'Content-Type': 'application/json' }
+    }).then(response => response.json())
+        .then(data => {
+            if (data.message === "Tanda tangan valid") {
+                alert('Tanda tangan berhasil diverifikasi!');
+            } else {
+                alert('Tanda tangan tidak valid!');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+});
+
     </script>
+
 </body>
 
 </html>

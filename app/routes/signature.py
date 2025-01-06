@@ -1,63 +1,32 @@
 from flask import Blueprint, request, jsonify
-import pyseto
-from pyseto import Key
-import datetime
-from app.models import db, Signature
+from app.utils.sign_data import sign_data  # Import fungsi sign_data
+from app.utils.verify_signature import verify_signature  # Import fungsi verify_signature
 
-# Blueprint untuk rute tanda tangan digital
-signature_bp = Blueprint('signature', __name__, url_prefix='/signature')
+signature_bp = Blueprint("signature", __name__)
 
-# Kunci privat dan publik (seharusnya disimpan dengan aman)
-PRIVATE_KEY = b"""-----BEGIN PRIVATE KEY-----
-MC4CAQAwBQYDK2VwBCIEILTL+0PfTOIQcn2VPkpxMwf6Gbt9n4UEFDjZ4RuUKjd0
------END PRIVATE KEY-----"""
-PUBLIC_KEY = b"""-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAHrnbu7wEfAP9cGBOAHHwmH4Wsot1ciXBHwBBXQ4gsaI=
------END PUBLIC KEY-----"""
-
-private_key = Key.new(version=4, purpose="public", key=PRIVATE_KEY)
-public_key = Key.new(version=4, purpose="public", key=PUBLIC_KEY)
-
-@signature_bp.route('/create', methods=['POST'])
-def create_signature():
-    try:
-        data = request.json
-        if not data or 'document' not in data:
-            return jsonify({'error': 'Document data is required'}), 400
-
-        # Buat payload dengan timestamp
-        payload = {
-            'document': data['document'],
-            'timestamp': datetime.datetime.utcnow().isoformat()
-        }
-
-        # Encode payload menjadi token PASETO
-        token = pyseto.encode(private_key, payload)
-        
-        new_signature = Signature(document=data['document'], token=token)
-        db.session.add(new_signature)
-        db.session.commit()
-
-        return jsonify({'token': token}), 200
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@signature_bp.route('/verify', methods=['POST'])
-def verify_signature():
-    try:
-        data = request.json
-        if not data or 'token' not in data:
-            return jsonify({'error': 'Token is required'}), 400
-
-        # Decode dan verifikasi token PASETO
-        decoded = pyseto.decode(public_key, data['token'])
-        payload = decoded.payload
-
-        return jsonify({'verified': True, 'payload': payload}), 200
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 400
+@signature_bp.route("/api/sign", methods=["POST"])
+def sign():
+    data = request.json.get("data", "")
+    if not data:
+        return jsonify({"error": "Data tidak boleh kosong"}), 400
     
-    
+    signed_message = sign_data(data)  # Menandatangani data
+    return jsonify({
+        "data": data,
+        "signature": signed_message.signature.hex(),
+        "message_with_signature": signed_message.hex()
+    })
+
+@signature_bp.route("/api/verify", methods=["POST"])
+def verify():
+    data = request.json.get("data", "")
+    signature = request.json.get("signature", "")
+    if not data or not signature:
+        return jsonify({"error": "Data dan tanda tangan tidak boleh kosong"}), 400
+
+    verification_result = verify_signature(data, signature)  # Memverifikasi tanda tangan
+    if verification_result:
+        return jsonify({"message": "Tanda tangan valid"})
+    else:
+        return jsonify({"message": "Tanda tangan tidak valid!"}), 400
 

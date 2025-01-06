@@ -10,6 +10,9 @@ import pymysql
 # Load environment variables
 load_dotenv()
 
+private_key_path = os.getenv('PRIVATE_KEY_PATH')
+public_key_path = os.getenv('PUBLIC_KEY_PATH')
+
 # Setup MySQL driver
 pymysql.install_as_MySQLdb()
 
