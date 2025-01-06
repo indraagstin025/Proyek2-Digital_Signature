@@ -8,6 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/interactjs@1.9.20/dist/interact.min.js"></script>
 </head>
 
 <body class="bg-gray-100 h-screen flex flex-col md:flex-row">
@@ -235,55 +236,80 @@
             });
         });
     
+        // Save Signature
         document.getElementById("save-signature").addEventListener("click", () => {
-    const signatureData = signatureCanvas.toDataURL("image/png"); // Format PNG
-    document.getElementById("loading").classList.remove("hidden");
+            const signatureData = signatureCanvas.toDataURL("image/png"); // Format PNG
+            document.getElementById("loading").classList.remove("hidden");
 
-    fetch('http://localhost:5000/api/sign', {
-        method: 'POST',
-        body: JSON.stringify({ data: signatureData }),
-        headers: { 'Content-Type': 'application/json' }
-    }).then(response => response.json())
-        .then(data => {
-            document.getElementById("loading").classList.add("hidden");
-            if (data.signature) {
-                alert('Tanda tangan berhasil disimpan!');
-                console.log("Signature Hex:", data.signature);
-                console.log("Message + Signature Hex:", data.message_with_signature);
-            } else {
-                alert('Gagal menyimpan tanda tangan.');
-            }
-            document.getElementById("signature-modal").classList.add("hidden");
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            document.getElementById("loading").classList.add("hidden");
+            fetch('http://localhost:5000/api/sign', {
+                method: 'POST',
+                body: JSON.stringify({ data: signatureData }),
+                headers: { 'Content-Type': 'application/json' }
+            }).then(response => response.json())
+                .then(data => {
+                    document.getElementById("loading").classList.add("hidden");
+                    if (data.signature) {
+                        alert('Tanda tangan berhasil disimpan!');
+                        console.log("Signature Hex:", data.signature);
+                        console.log("Message + Signature Hex:", data.message_with_signature);
+                    } else {
+                        alert('Gagal menyimpan tanda tangan.');
+                    }
+                    document.getElementById("signature-modal").classList.add("hidden");
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById("loading").classList.add("hidden");
+                });
         });
-});
 
-    
-        // Verify Signature
+        // Verify Signature Automatically
         document.getElementById("verify-signature").addEventListener("click", () => {
-    const signatureData = signatureCanvas.toDataURL("image/png");
-    const inputSignature = prompt("Masukkan tanda tangan hex untuk verifikasi:");
+            const signatureData = signatureCanvas.toDataURL("image/png"); // Get PNG data from canvas
 
-    fetch('http://localhost:5000/api/verify', {
-        method: 'POST',
-        body: JSON.stringify({ data: signatureData, signature: inputSignature }),
-        headers: { 'Content-Type': 'application/json' }
-    }).then(response => response.json())
-        .then(data => {
-            if (data.message === "Tanda tangan valid") {
-                alert('Tanda tangan berhasil diverifikasi!');
-            } else {
-                alert('Tanda tangan tidak valid!');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
+            document.getElementById("loading").classList.remove("hidden");
+
+            fetch('http://localhost:5000/api/verify', {
+                method: 'POST',
+                body: JSON.stringify({ data: signatureData }),
+                headers: { 'Content-Type': 'application/json' }
+            }).then(response => response.json())
+                .then(data => {
+                    document.getElementById("loading").classList.add("hidden");
+
+                    if (data.message === "Tanda tangan valid") {
+                        alert('Tanda tangan berhasil diverifikasi!');
+                    } else {
+                        alert('Tanda tangan tidak valid!');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById("loading").classList.add("hidden");
+                });
         });
-});
 
+        // Add Interact.js for Dragging the canvas
+        interact('#signature-canvas')
+            .draggable({
+                onstart(event) {
+                    console.log('Started dragging');
+                },
+                onmove(event) {
+                    signatureCanvas.style.left = (parseFloat(signatureCanvas.style.left || 0) + event.dx) + 'px';
+                    signatureCanvas.style.top = (parseFloat(signatureCanvas.style.top || 0) + event.dy) + 'px';
+                },
+                onend(event) {
+                    console.log('Stopped dragging');
+                }
+            })
+            .on('swipe', function (event) {
+                if (event.direction === 'left' || event.direction === 'right') {
+                    signatureCanvas.style.left = (parseFloat(signatureCanvas.style.left || 0) + (event.direction === 'left' ? -20 : 20)) + 'px';
+                } else if (event.direction === 'up' || event.direction === 'down') {
+                    signatureCanvas.style.top = (parseFloat(signatureCanvas.style.top || 0) + (event.direction === 'up' ? -20 : 20)) + 'px';
+                }
+            });
     </script>
 
 </body>

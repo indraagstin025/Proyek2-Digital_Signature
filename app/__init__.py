@@ -6,7 +6,6 @@ from app.extensions import init_extensions, db, mail
 from app.routes import register_blueprints
 import pymysql
 
-
 # Load environment variables
 load_dotenv()
 
@@ -30,11 +29,11 @@ def create_app(config_name='default'):
     else:
         app.config.from_object('config.ProductionConfig')
     
-    # Inisialisasi ekstensi
+    # Inisialisasi ekstensi dan blueprint
     init_extensions(app)
     register_blueprints(app)
     mail.init_app(app)
-    
+
     # Tambahkan header untuk mencegah cache
     @app.after_request
     def add_header(response):
@@ -42,5 +41,18 @@ def create_app(config_name='default'):
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '-1'
         return response
-    
+
     return app
+
+# Fungsi untuk list routes yang bisa diakses
+def list_routes(app):
+    with app.app_context():
+        print("Routes available:")
+        for rule in app.url_map.iter_rules():
+            print(f"Rule: {rule}")
+
+# Buat dan jalankan aplikasi
+app = create_app()
+
+# List routes setelah aplikasi siap
+list_routes(app)
