@@ -10,6 +10,9 @@ def verify_signature(message, signature):
     # Ambil path public key dari .env
     public_key_path = os.getenv("PUBLIC_KEY_PATH")
     
+    if not public_key_path or not os.path.exists(public_key_path):
+        raise FileNotFoundError("Public key file tidak ditemukan. Pastikan path benar.")
+    
     with open(public_key_path, "rb") as public_file:
         public_key_bytes = public_file.read()
     
@@ -23,12 +26,5 @@ def verify_signature(message, signature):
     except BadSignatureError:
         print("Tanda tangan tidak valid!")
         return False
-
-if __name__ == "__main__":
-    message = input("Masukkan pesan yang ingin diverifikasi: ")
-    signature = input("Masukkan tanda tangan (hex): ")
-    is_valid = verify_signature(message, signature)
-    if is_valid:
-        print("Tanda tangan valid.")
-    else:
-        print("Tanda tangan tidak valid!")
+    except Exception as e:
+        raise RuntimeError(f"Terjadi kesalahan saat memverifikasi tanda tangan: {e}")

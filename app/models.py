@@ -95,20 +95,21 @@ class Document(db.Model):
     filename = db.Column(db.String(255), nullable=False)
     filepath = db.Column(db.String(500), nullable=False)
     file_hash = db.Column(db.String(64), nullable=False)
-    uploaded_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), nullable=False)  # Perbaiki ke timezone.utc
+    uploaded_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), nullable=False)
     status = db.Column(db.String(50), default='pending', nullable=False)
     
     user = db.relationship('User', backref=db.backref('documents', lazy=True))
-    
+    # Tidak perlu backref di sini karena sudah diatur di model Signature
+
     @classmethod
     def is_duplicate(cls, file_content):
-        """Check if a document with the same hash already exists."""
+        """Cek apakah dokumen dengan hash yang sama sudah ada."""
         file_hash = sha256(file_content).hexdigest()
         return cls.query.filter_by(file_hash=file_hash).first() is not None
 
     @classmethod
     def create_document(cls, user_id, file, upload_folder):
-        """ Create a new document entry. Prevents duplicate uploads by checking the file hash. """
+        """Buat entri dokumen baru. Menghindari unggahan duplikat dengan memeriksa hash file."""
         from werkzeug.utils import secure_filename
         import os
 
@@ -142,14 +143,35 @@ class Document(db.Model):
         except IntegrityError:
             db.session.rollback()
             raise ValueError("Terjadi kesalahan saat menyimpan dokumen.")
-        
 
 
 class Signature(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    document = db.Column(db.Text, nullable=False)
+    document_id = db.Column(db.Integer, db.ForeignKey('document.id'), nullable=False)
     token = db.Column(db.Text, nullable=False)
-    timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)  # Ubah ini
+    timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    status = db.Column(db.String(50), default='pending', nullable=False)
+    
+    document = db.relationship('Document', backref=db.backref('signatures', lazy=True))  # 'signatures' tetap di sini
+    user = db.relationship('User', backref=db.backref('signatures', lazy=True)) # Relasi balik ke User
 
+    @classmethod
+    def verify_signature(cls, document_id, token):
+        """Verifikasi apakah token yang diberikan cocok dengan tanda tangan untuk dokumen tertentu."""
+        signature = Signature.query.filter_by(document_id=document_id, token=token).first()
+        if signature:
+            return True
+        return False
 
+    @classmethod
+    def create_signature(cls, document_id, user_id, token):
+        """Membuat tanda tangan baru untuk dokumen tertentu."""
+        signature = cls(document_id=document_id, user_id=user_id, token=token, status='pending')
+        try:
+            db.session.add(signature)
+            db.session.commit()
+            return signature
+        except IntegrityError:
+            db.session.rollback()
+            raise ValueError("Terjadi kesalahan saat membuat tanda tangan.")

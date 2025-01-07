@@ -1,317 +1,138 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Viewer with Signature</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <title>View Dokumen</title>
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/interactjs@1.9.20/dist/interact.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+    <style>
+        /* Custom styles for the canvas */
+        #signatureCanvas {
+            border: 2px dashed #d1d5db;
+            cursor: crosshair;
+        }
+        /* Button hover effect */
+        .btn {
+            transition: transform 0.2s, background-color 0.3s;
+        }
+        .btn:hover {
+            transform: scale(1.05);
+        }
+    </style>
 </head>
-
-<body class="bg-gray-100 h-screen flex flex-col md:flex-row">
-
-    <!-- Mobile Header -->
-    <header class="bg-blue-500 text-white flex items-center justify-between p-4 md:hidden">
-        <h1 class="text-lg font-bold">PDF Viewer</h1>
-        <button id="mobile-menu-btn" class="text-xl focus:outline-none">
-            ☰
-        </button>
-    </header>
-
-    <!-- Sidebar -->
-    <aside id="sidebar" class="w-full md:w-64 bg-gray-800 text-white hidden md:flex flex-col z-40 md:relative fixed h-full transform -translate-x-full md:translate-x-0 transition-transform duration-300">
-        <div class="p-4 text-2xl font-bold text-center border-b border-gray-700">Tanda Tangan</div>
-        <ul class="flex-1 space-y-4 p-4">
-            <li id="open-signature-modal" class="flex items-center space-x-2 cursor-pointer hover:bg-gray-700 p-3 rounded">
-                <span>✍️</span>
-                <span>Tanda Tangan Anda</span>
-            </li>
-        </ul>
-    </aside>
-
-    <!-- Main Content -->
-    <main class="flex-1 flex flex-col overflow-hidden">
-        <!-- PDF Header -->
-        <div class="p-4 bg-white shadow-md">
-            <h1 class="text-xl font-bold">File PDF</h1>
-            <p><strong>Nama File:</strong> {{ document.filename }}</p>
+<body class="bg-gray-100 font-sans">
+    <div class="container mx-auto p-4 md:p-8">
+        <!-- Header Section -->
+        <div class="bg-white p-6 rounded-lg shadow-lg mb-6">
+            <h1 class="text-3xl font-bold text-gray-800 text-center md:text-left">Detail Dokumen</h1>
+            <p class="text-gray-600 text-center md:text-left mt-2">Berikan tanda tangan digital Anda pada dokumen ini.</p>
         </div>
 
-        <!-- PDF Viewer -->
-        <div id="pdf-container" class="flex-1 p-4 overflow-auto bg-gray-200">
-            <canvas id="pdf-render" class="bg-white rounded shadow-md mx-auto max-w-full"></canvas>
+        <!-- Dokumen Details -->
+        <div class="bg-white p-6 rounded-lg shadow-lg mb-6">
+            <h2 class="text-2xl font-semibold text-gray-800">Informasi Dokumen</h2>
+            <ul class="mt-4 space-y-2">
+                <li><strong>Nama Dokumen:</strong> {{ document.filename }}</li>
+                <li><strong>Tanggal Upload:</strong> {{ document.uploaded_at.strftime('%d %B %Y, %H:%M') }}</li>
+                <li><strong>Ukuran File:</strong> {{ document.file_size }} KB</li>
+            </ul>
         </div>
 
-        <!-- Pagination Controls -->
-        <div class="p-4 bg-white shadow-md flex justify-between items-center">
-            <button id="prev" class="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded">
-                ← Halaman Sebelumnya
-            </button>
-            <div>
-                Halaman: <span id="page-num">1</span> / <span id="page-count"></span>
-            </div>
-            <button id="next" class="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded">
-                Halaman Berikutnya → 
-            </button>
-        </div>
-    </main>
+        <!-- Canvas for Digital Signature -->
+        <div class="bg-white p-6 rounded-lg shadow-lg">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Tanda Tangan Digital</h2>
+            <p class="text-gray-600 mb-4">Gunakan kursor Anda untuk memberikan tanda tangan di bawah ini:</p>
 
-    <!-- Signature Modal -->
-    <div id="signature-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center hidden z-50">
-        <div class="bg-white rounded-lg shadow-lg max-w-lg w-full p-6">
-            <div class="flex justify-between items-center border-b pb-4">
-                <h2 class="text-xl font-bold">Buat Tanda Tangan</h2>
-                <button id="close-modal" class="text-gray-600 hover:text-gray-900">&times;</button>
+            <!-- Canvas -->
+            <div class="border border-gray-300 p-4 rounded-md">
+                <canvas id="signatureCanvas" width="600" height="300" class="mx-auto block"></canvas>
             </div>
-            <div class="mt-4">
-                <div class="flex border-b">
-                    <button id="tab-gambar" class="tab-btn active p-2 text-blue-600 border-b-2 border-blue-600 flex-1 text-center">Gambar</button>
-                    <button id="tab-ketik" class="tab-btn p-2 text-gray-600 hover:text-blue-600 flex-1 text-center">Ketik</button>
-                    <button id="tab-unggah" class="tab-btn p-2 text-gray-600 hover:text-blue-600 flex-1 text-center">Unggah</button>
-                </div>
-                <div id="tab-content" class="mt-4">
-                    <div id="content-gambar" class="tab-content active">
-                        <canvas id="signature-canvas" class="border rounded w-full h-48"></canvas>
-                        <div class="flex justify-end mt-2">
-                            <button id="clear-canvas" class="bg-red-500 text-white px-4 py-2 rounded">Hapus</button>
-                        </div>
-                    </div>
-                    <div id="content-ketik" class="tab-content hidden">
-                        <input type="text" id="typed-signature" placeholder="Ketik tanda tangan Anda" class="border p-2 rounded w-full">
-                    </div>
-                    <div id="content-unggah" class="tab-content hidden">
-                        <input type="file" id="file-input" class="border p-2 rounded w-full">
-                        <img id="uploaded-preview" src="" alt="Pratinjau Tanda Tangan" class="hidden mt-2 border rounded max-h-48">
-                    </div>
-                </div>
-            </div>
-            <div class="border-t pt-4 mt-4 flex justify-end">
-                <button id="save-signature" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Simpan</button>
-                <button id="verify-signature" class="ml-2 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Verifikasi</button>
-                <button id="close-modal-footer" class="ml-2 bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400">Batal</button>
+
+            <!-- Actions -->
+            <div class="mt-6 flex justify-between">
+                <button id="clearCanvas" 
+                        class="px-4 py-2 bg-red-500 text-white rounded-lg shadow-md btn hover:bg-red-600">
+                    <i class="fas fa-trash-alt mr-2"></i> Hapus Tanda Tangan
+                </button>
+                <button id="saveSignature" 
+                        class="px-6 py-2 bg-green-500 text-white rounded-lg shadow-md btn hover:bg-green-600">
+                    <i class="fas fa-save mr-2"></i> Simpan Tanda Tangan
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- Loading Indicator -->
-    <div id="loading" class="loading fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center hidden z-50">
-        <div class="bg-white p-4 rounded-lg shadow-lg text-center">
-            <div class="spinner-border animate-spin inline-block w-8 h-8 border-4 rounded-full text-blue-600" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-            <p class="mt-2">Menunggu tanda tangan disimpan...</p>
-        </div>
-    </div>
-
-    <!-- JavaScript -->
+    <!-- JavaScript for Canvas -->
     <script>
-        // PDF.js Integration
-        const url = "http://localhost:5000/static/uploads/{{ document.filename }}"; // Update URL to localhost path
+    const canvas = document.getElementById('signatureCanvas');
+    const ctx = canvas.getContext('2d');
+    const clearBtn = document.getElementById('clearCanvas');
+    const saveBtn = document.getElementById('saveSignature');
     
-        const pdfjsLib = window["pdfjs-dist/build/pdf"];
-        pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
-    
-        let pdfDoc = null,
-            pageNum = 1,
-            pageIsRendering = false,
-            pageNumPending = null;
-    
-        const scale = 1.5;
-        const pdfCanvas = document.getElementById("pdf-render"),
-            pdfCtx = pdfCanvas.getContext("2d");
-    
-        const renderPage = (num) => {
-            pageIsRendering = true;
-    
-            pdfDoc.getPage(num).then((page) => {
-                const viewport = page.getViewport({ scale });
-                pdfCanvas.height = viewport.height;
-                pdfCanvas.width = viewport.width;
-    
-                const renderCtx = {
-                    canvasContext: pdfCtx,
-                    viewport,
-                };
-    
-                page.render(renderCtx).promise.then(() => {
-                    pageIsRendering = false;
-    
-                    if (pageNumPending !== null) {
-                        renderPage(pageNumPending);
-                        pageNumPending = null;
-                    }
-                });
-    
-                document.getElementById("page-num").textContent = num;
-            }).catch((error) => {
-                console.error("Error rendering page:", error);
-            });
+    const docId = "{{ document.id }}"; // Mendapatkan ID dokumen dari backend
+
+    let drawing = false;
+
+    canvas.addEventListener('mousedown', () => { drawing = true; });
+    canvas.addEventListener('mouseup', () => { drawing = false; ctx.beginPath(); });
+    canvas.addEventListener('mousemove', draw);
+    clearBtn.addEventListener('click', clearCanvas);
+
+    function draw(event) {
+        if (!drawing) return;
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = '#000';
+        ctx.lineTo(event.offsetX, event.offsetY);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(event.offsetX, event.offsetY);
+    }
+
+    function clearCanvas() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // Mengirimkan tanda tangan ke server
+    saveBtn.addEventListener('click', async function() {
+        const signature = canvas.toDataURL('image/png');  // Mengambil data tanda tangan dalam format PNG
+
+        if (signature === 'data:,') {
+            alert('Tanda tangan tidak boleh kosong!');
+            return;
+        }
+
+        // Menyiapkan data untuk dikirim ke backend
+        const requestData = {
+            data: signature,
+            doc_id: docId  // Menambahkan ID dokumen untuk dihubungkan dengan tanda tangan
         };
-    
-        const queueRenderPage = (num) => {
-            if (pageIsRendering) {
-                pageNumPending = num;
+
+        try {
+            // Mengirim permintaan POST ke Flask API untuk menandatangani data
+            const response = await fetch(`/signature/api/sign`, {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(requestData)
+});
+
+
+            const result = await response.json();
+            if (response.ok) {
+                alert('Tanda tangan berhasil disimpan!');
+                console.log(result);
+                window.location.reload(); // Reload halaman untuk memperbarui status dokumen
             } else {
-                renderPage(num);
+                alert('Gagal menyimpan tanda tangan: ' + result.error);
             }
-        };
-    
-        const onPrevPage = () => {
-            if (pageNum <= 1) return;
-            pageNum--;
-            queueRenderPage(pageNum);
-        };
-    
-        const onNextPage = () => {
-            if (pageNum >= pdfDoc.numPages) return;
-            pageNum++;
-            queueRenderPage(pageNum);
-        };
-    
-        pdfjsLib.getDocument(url).promise.then((pdfDoc_) => {
-            pdfDoc = pdfDoc_;
-            document.getElementById("page-count").textContent = pdfDoc.numPages;
-            renderPage(pageNum);
-        }).catch((error) => {
-            console.error("Error loading PDF:", error);
-        });
-    
-        document.getElementById("prev").addEventListener("click", onPrevPage);
-        document.getElementById("next").addEventListener("click", onNextPage);
-    
-        // Open Signature Modal
-        document.getElementById("open-signature-modal").addEventListener("click", () => {
-            document.getElementById("signature-modal").classList.remove("hidden");
-        });
-    
-        // Close Modal
-        document.getElementById("close-modal").addEventListener("click", () => {
-            document.getElementById("signature-modal").classList.add("hidden");
-        });
-    
-        // Canvas Signature Handling
-        const signatureCanvas = document.getElementById("signature-canvas");
-        const signatureCtx = signatureCanvas.getContext("2d");
-        let drawing = false;
-    
-        signatureCanvas.addEventListener("mousedown", (e) => {
-            drawing = true;
-            signatureCtx.beginPath();
-            signatureCtx.moveTo(e.offsetX, e.offsetY);
-        });
-    
-        signatureCanvas.addEventListener("mousemove", (e) => {
-            if (!drawing) return;
-            signatureCtx.lineTo(e.offsetX, e.offsetY);
-            signatureCtx.stroke();
-        });
-    
-        signatureCanvas.addEventListener("mouseup", () => {
-            drawing = false;
-        });
-    
-        // Clear Canvas
-        document.getElementById("clear-canvas").addEventListener("click", () => {
-            signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
-        });
-    
-        // Tab Handling
-        const tabBtns = document.querySelectorAll(".tab-btn");
-        const tabContents = document.querySelectorAll(".tab-content");
-    
-        tabBtns.forEach((btn, index) => {
-            btn.addEventListener("click", () => {
-                tabBtns.forEach((btn) => btn.classList.remove("active"));
-                btn.classList.add("active");
-                tabContents.forEach((content, idx) => {
-                    if (index === idx) {
-                        content.classList.remove("hidden");
-                    } else {
-                        content.classList.add("hidden");
-                    }
-                });
-            });
-        });
-    
-        // Save Signature
-        document.getElementById("save-signature").addEventListener("click", () => {
-            const signatureData = signatureCanvas.toDataURL("image/png"); // Format PNG
-            document.getElementById("loading").classList.remove("hidden");
-
-            fetch('http://localhost:5000/api/sign', {
-                method: 'POST',
-                body: JSON.stringify({ data: signatureData }),
-                headers: { 'Content-Type': 'application/json' }
-            }).then(response => response.json())
-                .then(data => {
-                    document.getElementById("loading").classList.add("hidden");
-                    if (data.signature) {
-                        alert('Tanda tangan berhasil disimpan!');
-                        console.log("Signature Hex:", data.signature);
-                        console.log("Message + Signature Hex:", data.message_with_signature);
-                    } else {
-                        alert('Gagal menyimpan tanda tangan.');
-                    }
-                    document.getElementById("signature-modal").classList.add("hidden");
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    document.getElementById("loading").classList.add("hidden");
-                });
-        });
-
-        // Verify Signature Automatically
-        document.getElementById("verify-signature").addEventListener("click", () => {
-            const signatureData = signatureCanvas.toDataURL("image/png"); // Get PNG data from canvas
-
-            document.getElementById("loading").classList.remove("hidden");
-
-            fetch('http://localhost:5000/api/verify', {
-                method: 'POST',
-                body: JSON.stringify({ data: signatureData }),
-                headers: { 'Content-Type': 'application/json' }
-            }).then(response => response.json())
-                .then(data => {
-                    document.getElementById("loading").classList.add("hidden");
-
-                    if (data.message === "Tanda tangan valid") {
-                        alert('Tanda tangan berhasil diverifikasi!');
-                    } else {
-                        alert('Tanda tangan tidak valid!');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    document.getElementById("loading").classList.add("hidden");
-                });
-        });
-
-        // Add Interact.js for Dragging the canvas
-        interact('#signature-canvas')
-            .draggable({
-                onstart(event) {
-                    console.log('Started dragging');
-                },
-                onmove(event) {
-                    signatureCanvas.style.left = (parseFloat(signatureCanvas.style.left || 0) + event.dx) + 'px';
-                    signatureCanvas.style.top = (parseFloat(signatureCanvas.style.top || 0) + event.dy) + 'px';
-                },
-                onend(event) {
-                    console.log('Stopped dragging');
-                }
-            })
-            .on('swipe', function (event) {
-                if (event.direction === 'left' || event.direction === 'right') {
-                    signatureCanvas.style.left = (parseFloat(signatureCanvas.style.left || 0) + (event.direction === 'left' ? -20 : 20)) + 'px';
-                } else if (event.direction === 'up' || event.direction === 'down') {
-                    signatureCanvas.style.top = (parseFloat(signatureCanvas.style.top || 0) + (event.direction === 'up' ? -20 : 20)) + 'px';
-                }
-            });
+        } catch (error) {
+            alert('Terjadi kesalahan: ' + error.message);
+        }
+    });
     </script>
-
 </body>
-
 </html>
