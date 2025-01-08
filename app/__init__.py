@@ -33,6 +33,7 @@ def create_app(config_name='default'):
     init_extensions(app)
     register_blueprints(app)
     mail.init_app(app)
+    
 
     # Tambahkan header untuk mencegah cache
     @app.after_request

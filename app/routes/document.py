@@ -1,10 +1,12 @@
 import os
-from flask import Blueprint, request, redirect, url_for, render_template, flash
+from flask import Blueprint, request, redirect, url_for, render_template, flash, jsonify
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 from werkzeug.exceptions import NotFound
 from app.models import Document, Signature
 from app import db 
+from app.utils.sign_token import sign_token
+from app.utils.verify_token import verify_token
 import mimetypes
 import hashlib
 from flask import send_file
@@ -30,17 +32,13 @@ def create_upload_folder_if_not_exists():
         raise RuntimeError(f"Failed to create upload folder: {str(e)}")
 
 def allowed_file(filename):
-    """Check if file extension is allowed."""
+    allowed_extensions = {'pdf', 'docx'}
+    allowed_mimetypes = {'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}
+    file_extension = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
     mimetype, _ = mimetypes.guess_type(filename)
-    allowed_mimetypes = {
-        'application/pdf',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    }
-    return (
-        '.' in filename
-        and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-        and mimetype in allowed_mimetypes
-    )
+
+    return file_extension in allowed_extensions and mimetype in allowed_mimetypes
+
 
 def file_size_valid(file):
     """Check if file size is within allowed limit."""
@@ -73,56 +71,63 @@ def save_file(file):
 @document_bp.route('/upload', methods=['GET', 'POST'])
 @login_required
 def upload_document():
-    """Route for uploading documents."""
     if request.method == 'POST':
         file = request.files.get('file')
 
         if file and allowed_file(file.filename):
-            print(f"[DEBUG] File received: {file.filename}")
-            
-            # Check file size
-            if not file_size_valid(file):
-                flash(f'File is too large. Max allowed is {MAX_FILE_SIZE_MB}MB.', 'error')
-                return redirect(request.url)
-
             try:
-                # Save file first
+                # Proses penyimpanan file
                 filename = save_file(file)
-
-                # Generate file hash
                 file_hash = generate_file_hash(file)
-                print(f"[DEBUG] Generated file hash: {file_hash}")
 
-                # Check if document with the same hash already exists
-                existing_document = Document.query.filter_by(file_hash=file_hash).first()
-                if existing_document:
-                    flash('File with the same content already exists in the database.', 'error')
-                    return redirect(request.url)
+                # Membuat token tanda tangan
+                token = sign_token(file_hash)
+                print(f"[DEBUG] Token tanda tangan: {token}")
 
-                # Create new document entry in the database
+                # Simpan dokumen ke database
                 new_document = Document(
                     user_id=current_user.id,
                     filename=filename,
                     filepath=os.path.join(UPLOAD_FOLDER, filename),
-                    file_hash=file_hash,  # Using unique file hash
+                    file_hash=file_hash,
                 )
                 db.session.add(new_document)
                 db.session.commit()
 
-                flash('Document successfully uploaded!', 'success')
-                return redirect(url_for('document.list_documents'))  # Redirect to list of documents
-            except RuntimeError as e:
-                flash(f'File system error: {str(e)}', 'error')
-                return redirect(request.url)
+                # Simpan tanda tangan ke database
+                new_signature = Signature.create_signature(
+                    document_id=new_document.id,
+                    user_id=current_user.id,
+                    token=token,
+                )
+
+                flash('Dokumen berhasil diunggah dan ditandatangani!', 'success')
+                return redirect(url_for('document.list_documents'))
             except Exception as e:
                 db.session.rollback()
-                flash(f'Database error: {str(e)}', 'error')
-                return redirect(request.url)
-        else:
-            flash('Invalid file format or no file uploaded.', 'error')
+                flash(f'Terjadi kesalahan: {str(e)}', 'error')
 
     return render_template('upload_document.html')
 
+@document_bp.route('/verify/<int:doc_id>', methods=['POST'])
+@login_required
+def verify_document_signature(doc_id):
+    try:
+        document = Document.query.get_or_404(doc_id)
+
+        # Ambil token tanda tangan dari database
+        signature = Signature.query.filter_by(document_id=doc_id).first()
+        if not signature:
+            return jsonify({"error": "Tanda tangan tidak ditemukan untuk dokumen ini."}), 404
+
+        # Verifikasi tanda tangan
+        is_valid = verify_token(signature.token, document.file_hash)
+        if is_valid:
+            return jsonify({"message": "Tanda tangan valid."}), 200
+        else:
+            return jsonify({"error": "Tanda tangan tidak valid."}), 400
+    except Exception as e:
+        return jsonify({"error": f"Terjadi kesalahan: {e}"}), 500
 
 @document_bp.route('/view_document/<int:doc_id>', methods=['GET'])
 @login_required
@@ -161,39 +166,20 @@ def list_documents():
 @document_bp.route('/document/delete/<int:doc_id>', methods=['POST'])
 @login_required
 def delete_document(doc_id):
-    """Route to delete document by ID."""
     try:
         document = Document.query.get_or_404(doc_id)
-
-        # Check if the user has permission to delete the document
         if document.user_id != current_user.id:
             flash('You do not have permission to delete this document.', 'error')
             return redirect(url_for('document.list_documents'))
 
-        # Delete the file from the file system
-        def delete_file(filepath):
-            try:
-                if os.path.exists(filepath):
-                    os.remove(filepath)
-                    print(f"[DEBUG] File deleted: {filepath}")
-                else:
-                    flash('File not found, but the record will be deleted from the database.', 'info')
-            except Exception as file_error:
-                flash(f'Failed to delete file: {file_error}', 'error')
-                return False
-            return True
-
-        # Delete file and then database entry
-        if not delete_file(document.filepath):
-            db.session.delete(document)
-            db.session.commit()
-            flash('Document deleted from database (file not found).', 'success')
-            return redirect(url_for('document.list_documents'))
-
+        filepath = document.filepath
         db.session.delete(document)
         db.session.commit()
-        flash('Document successfully deleted.', 'success')
 
+        if os.path.exists(filepath):
+            os.remove(filepath)
+
+        flash('Document successfully deleted.', 'success')
     except Exception as e:
         db.session.rollback()
         flash(f'Failed to delete document: {e}', 'error')

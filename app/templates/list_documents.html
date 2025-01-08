@@ -36,6 +36,7 @@
                         <tr>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama Dokumen</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal Upload</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status Tanda Tangan</th>
                             <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
                         </tr>
                     </thead>
@@ -52,6 +53,14 @@
                                 <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                                     {{ document.uploaded_at.strftime('%d %B %Y, %H:%M') }}
                                 </td>
+                                <!-- Status Tanda Tangan -->
+                                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                    {% if document.signatures %}
+                                        <span class="text-green-600 font-semibold">Ditandatangani</span>
+                                    {% else %}
+                                        <span class="text-red-600 font-semibold">Belum Ditandatangani</span>
+                                    {% endif %}
+                                </td>
                                 <!-- Tombol Aksi -->
                                 <td class="px-4 py-3 whitespace-nowrap text-center">
                                     <!-- Tombol View -->
@@ -60,6 +69,14 @@
                                        title="Lihat Dokumen">
                                         <i class="fas fa-eye text-lg"></i>
                                     </a>
+                                    <!-- Tombol Verifikasi Tanda Tangan -->
+                                    {% if document.signatures %}
+                                        <form action="{{ url_for('document.verify_document_signature', doc_id=document.id) }}" method="post" class="inline-block">
+                                            <button type="submit" class="text-green-500 hover:text-green-700 mx-2" title="Verifikasi Tanda Tangan">
+                                                <i class="fas fa-check-circle text-lg"></i>
+                                            </button>
+                                        </form>
+                                    {% endif %}
                                     <!-- Tombol Delete -->
                                     <form action="{{ url_for('document.delete_document', doc_id=document.id) }}" method="post" class="inline-block">
                                         <button type="submit" class="text-red-500 hover:text-red-700 mx-2" title="Hapus Dokumen"

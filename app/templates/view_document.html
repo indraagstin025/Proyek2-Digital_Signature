@@ -4,16 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>View Dokumen</title>
-    <!-- Tailwind CSS CDN -->
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
     <style>
-        /* Custom styles for the canvas */
         #signatureCanvas {
             border: 2px dashed #d1d5db;
             cursor: crosshair;
         }
-        /* Button hover effect */
         .btn {
             transition: transform 0.2s, background-color 0.3s;
         }
@@ -40,17 +38,26 @@
             </ul>
         </div>
 
+        <!-- Document Preview -->
+        <div class="bg-white p-6 rounded-lg shadow-lg mb-6">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Pratinjau Dokumen</h2>
+            {% if document.filename.endswith('.pdf') %}
+                <iframe src="{{ url_for('static', filename='uploads/' ~ document.filename) }}" 
+                        width="100%" height="500px" class="rounded-md border"></iframe>
+            {% else %}
+                <p class="text-gray-600">Pratinjau tidak tersedia untuk jenis file ini.</p>
+            {% endif %}
+        </div>
+
         <!-- Canvas for Digital Signature -->
         <div class="bg-white p-6 rounded-lg shadow-lg">
             <h2 class="text-2xl font-semibold text-gray-800 mb-4">Tanda Tangan Digital</h2>
             <p class="text-gray-600 mb-4">Gunakan kursor Anda untuk memberikan tanda tangan di bawah ini:</p>
 
-            <!-- Canvas -->
             <div class="border border-gray-300 p-4 rounded-md">
                 <canvas id="signatureCanvas" width="600" height="300" class="mx-auto block"></canvas>
             </div>
 
-            <!-- Actions -->
             <div class="mt-6 flex justify-between">
                 <button id="clearCanvas" 
                         class="px-4 py-2 bg-red-500 text-white rounded-lg shadow-md btn hover:bg-red-600">
@@ -64,75 +71,91 @@
         </div>
     </div>
 
-    <!-- JavaScript for Canvas -->
+    <!-- JavaScript -->
     <script>
-    const canvas = document.getElementById('signatureCanvas');
-    const ctx = canvas.getContext('2d');
-    const clearBtn = document.getElementById('clearCanvas');
-    const saveBtn = document.getElementById('saveSignature');
-    
-    const docId = "{{ document.id }}"; // Mendapatkan ID dokumen dari backend
+        const canvas = document.getElementById('signatureCanvas');
+        const ctx = canvas.getContext('2d');
+        const clearBtn = document.getElementById('clearCanvas');
+        const saveBtn = document.getElementById('saveSignature');
+        
+        const docId = "{{ document.id }}"; // Mendapatkan ID dokumen dari backend
+        let drawing = false;
 
-    let drawing = false;
+        // Event Listener untuk menggambar pada canvas
+        canvas.addEventListener('mousedown', () => { drawing = true; });
+        canvas.addEventListener('mouseup', () => { drawing = false; ctx.beginPath(); });
+        canvas.addEventListener('mousemove', draw);
+        clearBtn.addEventListener('click', clearCanvas);
 
-    canvas.addEventListener('mousedown', () => { drawing = true; });
-    canvas.addEventListener('mouseup', () => { drawing = false; ctx.beginPath(); });
-    canvas.addEventListener('mousemove', draw);
-    clearBtn.addEventListener('click', clearCanvas);
-
-    function draw(event) {
-        if (!drawing) return;
-        ctx.lineWidth = 2;
-        ctx.lineCap = 'round';
-        ctx.strokeStyle = '#000';
-        ctx.lineTo(event.offsetX, event.offsetY);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(event.offsetX, event.offsetY);
-    }
-
-    function clearCanvas() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
-
-    // Mengirimkan tanda tangan ke server
-    saveBtn.addEventListener('click', async function() {
-        const signature = canvas.toDataURL('image/png');  // Mengambil data tanda tangan dalam format PNG
-
-        if (signature === 'data:,') {
-            alert('Tanda tangan tidak boleh kosong!');
-            return;
+        function draw(event) {
+            if (!drawing) return;
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = '#000';
+            ctx.lineTo(event.offsetX, event.offsetY);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(event.offsetX, event.offsetY);
         }
 
-        // Menyiapkan data untuk dikirim ke backend
-        const requestData = {
-            data: signature,
-            doc_id: docId  // Menambahkan ID dokumen untuk dihubungkan dengan tanda tangan
-        };
+        function clearCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
 
-        try {
-            // Mengirim permintaan POST ke Flask API untuk menandatangani data
-            const response = await fetch(`/sign`, {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(requestData)
+        // Menyimpan tanda tangan ke server
+        saveBtn.addEventListener('click', async function() {
+    const signature = canvas.toDataURL('image/png');  // Mendapatkan data tanda tangan dalam format PNG
+
+    if (signature === 'data:,') {
+        alert('Tanda tangan tidak boleh kosong!');
+        return;
+    }
+
+    const requestData = {
+        data: signature,
+        doc_id: docId
+    };
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Menyimpan...";
+
+    try {
+    const response = await fetch(`/signature/api/sign`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        },
+        body: JSON.stringify(requestData),
+    });
+
+    console.log(`Status Code: ${response.status}`);
+    console.log(`Headers: ${JSON.stringify(response.headers)}`);
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Server tidak mengembalikan JSON.');
+    }
+
+    const result = await response.json();
+    if (response.ok) {
+        alert('Tanda tangan berhasil disimpan!');
+        console.log(result);
+        window.location.reload();
+    } else {
+        console.error(result);
+        alert(result.error || 'Terjadi kesalahan saat menyimpan tanda tangan.');
+    }
+} catch (error) {
+    console.error('Kesalahan:', error);
+    alert(error.message);
+} finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = "Simpan Tanda Tangan";
+}
+
 });
 
-
-            const result = await response.json();
-            if (response.ok) {
-                alert('Tanda tangan berhasil disimpan!');
-                console.log(result);
-                window.location.reload(); // Reload halaman untuk memperbarui status dokumen
-            } else {
-                alert('Gagal menyimpan tanda tangan: ' + result.error);
-            }
-        } catch (error) {
-            alert('Terjadi kesalahan: ' + error.message);
-        }
-    });
     </script>
 </body>
 </html>

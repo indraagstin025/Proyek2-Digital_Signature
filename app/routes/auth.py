@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from app.models import User
 from app.extensions import db
@@ -7,9 +7,12 @@ from flask_mail import Message
 from app.extensions import mail
 from itsdangerous import BadSignature, SignatureExpired
 
+
+# Utility functions for token generation and verification
 def generate_token(email, secret_key, salt):
     serializer = URLSafeTimedSerializer(secret_key)
     return serializer.dumps(email, salt=salt)
+
 
 def verify_token(token, secret_key, salt, max_age):
     serializer = URLSafeTimedSerializer(secret_key)
@@ -20,6 +23,7 @@ def verify_token(token, secret_key, salt, max_age):
     except BadSignature:
         return None
 
+
 def send_reset_email(email, reset_url, sender):
     msg = Message(
         subject="Reset Your Password",
@@ -29,8 +33,12 @@ def send_reset_email(email, reset_url, sender):
     )
     mail.send(msg)
 
+
+# Blueprint setup
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
+
+# Registration route
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
@@ -50,26 +58,43 @@ def register():
 
     return render_template('auth/register.html')
 
+
+# Login route
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard.home'))
 
     if request.method == 'POST':
-        email = request.form['email']
-        password = request.form['password']
-        user = User.query.filter_by(email=email).first()
+        # Handling JSON request (Postman) or form request (HTML)
+        if request.is_json:
+            data = request.get_json()
+            email = data.get('email')
+            password = data.get('password')
+        else:
+            email = request.form.get('email')
+            password = request.form.get('password')
 
+        # Verify user credentials
+        user = User.query.filter_by(email=email).first()
         if user and user.check_password(password):
             login_user(user)
+            if request.is_json:
+                return jsonify({"message": "Login successful!"}), 200
+
             flash('Login successful!', 'success')
             next_page = request.args.get('next')
             return redirect(next_page) if next_page else redirect(url_for('dashboard.home'))
 
+        # If login fails
+        if request.is_json:
+            return jsonify({"error": "Invalid email or password."}), 401
         flash('Invalid email or password.', 'danger')
 
     return render_template('auth/login.html')
 
+
+# Forgot password route
 @auth_bp.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
     if request.method == 'POST':
@@ -78,8 +103,8 @@ def forgot_password():
 
         if user:
             token = generate_token(
-                email, 
-                current_app.config['SECRET_KEY'], 
+                email,
+                current_app.config['SECRET_KEY'],
                 current_app.config['PASSWORD_RESET_SALT']
             )
             reset_url = url_for('auth.reset_password', token=token, _external=True)
@@ -92,6 +117,8 @@ def forgot_password():
 
     return render_template('auth/forgot_password.html')
 
+
+# Reset password route
 @auth_bp.route('/reset-password/<token>', methods=['GET', 'POST'])
 def reset_password(token):
     email = verify_token(
@@ -126,6 +153,8 @@ def reset_password(token):
 
     return render_template('auth/reset_password.html', token=token)
 
+
+# Logout route
 @auth_bp.route('/logout')
 @login_required
 def logout():

@@ -10,6 +10,7 @@ from hashlib import sha256
 from datetime import datetime, timezone
 
 
+
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
@@ -103,9 +104,11 @@ class Document(db.Model):
 
     @classmethod
     def is_duplicate(cls, file_content):
-        """Cek apakah dokumen dengan hash yang sama sudah ada."""
+        file_content.seek(0)  # Reset pointer ke awal file
         file_hash = sha256(file_content).hexdigest()
+        file_content.seek(0)  # Reset ulang setelah hashing
         return cls.query.filter_by(file_hash=file_hash).first() is not None
+
 
     @classmethod
     def create_document(cls, user_id, file, upload_folder):
