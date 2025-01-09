@@ -99,6 +99,7 @@ class Document(db.Model):
     uploaded_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), nullable=False)
     status = db.Column(db.String(50), default='pending', nullable=False)
     
+    
     user = db.relationship('User', backref=db.backref('documents', lazy=True))
     # Tidak perlu backref di sini karena sudah diatur di model Signature
 
@@ -155,21 +156,13 @@ class Signature(db.Model):
     timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     status = db.Column(db.String(50), default='pending', nullable=False)
-    
-    document = db.relationship('Document', backref=db.backref('signatures', lazy=True))  # 'signatures' tetap di sini
-    user = db.relationship('User', backref=db.backref('signatures', lazy=True)) # Relasi balik ke User
+    qr_code_path = db.Column(db.String(500), nullable=True)  # Path untuk QR Code
 
-    @classmethod
-    def verify_signature(cls, document_id, token):
-        """Verifikasi apakah token yang diberikan cocok dengan tanda tangan untuk dokumen tertentu."""
-        signature = Signature.query.filter_by(document_id=document_id, token=token).first()
-        if signature:
-            return True
-        return False
+    document = db.relationship('Document', backref=db.backref('signatures', lazy=True))
+    user = db.relationship('User', backref=db.backref('signatures', lazy=True))
 
     @classmethod
     def create_signature(cls, document_id, user_id, token):
-        """Membuat tanda tangan baru untuk dokumen tertentu."""
         signature = cls(document_id=document_id, user_id=user_id, token=token, status='pending')
         try:
             db.session.add(signature)
@@ -178,3 +171,7 @@ class Signature(db.Model):
         except IntegrityError:
             db.session.rollback()
             raise ValueError("Terjadi kesalahan saat membuat tanda tangan.")
+        
+    
+    
+    

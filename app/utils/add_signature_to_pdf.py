@@ -3,7 +3,10 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from io import BytesIO
 
-def add_signature_to_pdf(input_pdf, signature_image, output_pdf):
+def add_signature_to_pdf(input_pdf, signature_image, output_pdf, position):
+    """
+    Menambahkan tanda tangan ke dokumen PDF pada posisi tertentu.
+    """
     # Membaca PDF asli
     reader = PdfReader(input_pdf)
     writer = PdfWriter()
@@ -11,7 +14,7 @@ def add_signature_to_pdf(input_pdf, signature_image, output_pdf):
     # Membuat halaman baru dengan tanda tangan menggunakan ReportLab
     packet = BytesIO()
     can = canvas.Canvas(packet, pagesize=letter)
-    can.drawImage(BytesIO(signature_image), 100, 100, width=200, height=100)  # Atur posisi tanda tangan
+    can.drawImage(BytesIO(signature_image), position['x'], position['y'], width=200, height=100)  # Gunakan posisi
     can.save()
 
     # Gabungkan halaman tanda tangan dengan halaman PDF asli

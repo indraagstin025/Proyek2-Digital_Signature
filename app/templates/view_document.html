@@ -3,159 +3,244 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>View Dokumen</title>
-    <!-- Tailwind CSS -->
+    <title>Pratinjau Dokumen</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
     <style>
+        #documentContainer {
+            position: relative;
+            width: 100%;
+            height: 500px;
+            border: 1px solid #d1d5db;
+            overflow: hidden;
+        }
+
         #signatureCanvas {
-            border: 2px dashed #d1d5db;
-            cursor: crosshair;
+            border: 2px dashed #4a5568;
+            background-color: rgba(255, 255, 255, 0.8);
         }
-        .btn {
-            transition: transform 0.2s, background-color 0.3s;
+
+        .draggable-signature {
+            position: absolute;
+            cursor: grab;
+            z-index: 10;
         }
-        .btn:hover {
-            transform: scale(1.05);
+
+        iframe {
+            display: block;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        #qrContainer img {
+            max-width: 200px;
+            border: 2px solid #4a5568;
+            border-radius: 8px;
+            margin-top: 10px;
         }
     </style>
 </head>
 <body class="bg-gray-100 font-sans">
     <div class="container mx-auto p-4 md:p-8">
-        <!-- Header Section -->
-        <div class="bg-white p-6 rounded-lg shadow-lg mb-6">
-            <h1 class="text-3xl font-bold text-gray-800 text-center md:text-left">Detail Dokumen</h1>
-            <p class="text-gray-600 text-center md:text-left mt-2">Berikan tanda tangan digital Anda pada dokumen ini.</p>
-        </div>
-
-        <!-- Dokumen Details -->
-        <div class="bg-white p-6 rounded-lg shadow-lg mb-6">
-            <h2 class="text-2xl font-semibold text-gray-800">Informasi Dokumen</h2>
-            <ul class="mt-4 space-y-2">
-                <li><strong>Nama Dokumen:</strong> {{ document.filename }}</li>
-                <li><strong>Tanggal Upload:</strong> {{ document.uploaded_at.strftime('%d %B %Y, %H:%M') }}</li>
-                <li><strong>Ukuran File:</strong> {{ document.file_size }} KB</li>
-            </ul>
-        </div>
-
-        <!-- Document Preview -->
-        <div class="bg-white p-6 rounded-lg shadow-lg mb-6">
-            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Pratinjau Dokumen</h2>
-            {% if document.filename.endswith('.pdf') %}
-                <iframe src="{{ url_for('static', filename='uploads/' ~ document.filename) }}" 
-                        width="100%" height="500px" class="rounded-md border"></iframe>
-            {% else %}
-                <p class="text-gray-600">Pratinjau tidak tersedia untuk jenis file ini.</p>
-            {% endif %}
-        </div>
-
-        <!-- Canvas for Digital Signature -->
         <div class="bg-white p-6 rounded-lg shadow-lg">
-            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Tanda Tangan Digital</h2>
-            <p class="text-gray-600 mb-4">Gunakan kursor Anda untuk memberikan tanda tangan di bawah ini:</p>
-
-            <div class="border border-gray-300 p-4 rounded-md">
-                <canvas id="signatureCanvas" width="600" height="300" class="mx-auto block"></canvas>
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Pratinjau Dokumen</h2>
+            <div id="documentContainer">
+                <!-- Dokumen -->
+                <iframe src="{{ url_for('static', filename='uploads/' ~ document.filename) }}"></iframe>
             </div>
 
-            <div class="mt-6 flex justify-between">
-                <button id="clearCanvas" 
-                        class="px-4 py-2 bg-red-500 text-white rounded-lg shadow-md btn hover:bg-red-600">
-                    <i class="fas fa-trash-alt mr-2"></i> Hapus Tanda Tangan
-                </button>
-                <button id="saveSignature" 
-                        class="px-6 py-2 bg-green-500 text-white rounded-lg shadow-md btn hover:bg-green-600">
-                    <i class="fas fa-save mr-2"></i> Simpan Tanda Tangan
-                </button>
+            <!-- Canvas untuk tanda tangan -->
+            <div class="mt-6">
+                <h3 class="text-lg font-semibold mb-2">Buat Tanda Tangan:</h3>
+                <canvas id="signatureCanvas" width="400" height="150"></canvas>
+                <div class="mt-4 flex gap-4">
+                    <button id="clearCanvas" class="px-4 py-2 bg-red-500 text-white rounded-lg shadow-md hover:bg-red-600">
+                        Hapus
+                    </button>
+                    <button id="submitSignature" class="px-4 py-2 bg-blue-500 text-white rounded-lg shadow-md hover:bg-blue-600">
+                        Kirim ke Server
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tombol fitur tambahan -->
+            <div class="mt-6">
+                <h3 class="text-lg font-semibold mb-2">Tanda Tangan dan QR Code:</h3>
+                <div class="flex gap-4">
+                    <button id="createSignature" class="px-4 py-2 bg-purple-500 text-white rounded-lg shadow-md hover:bg-purple-600">
+                        Buat Token Tanda Tangan
+                    </button>
+                    <button id="checkSignature" class="px-4 py-2 bg-orange-500 text-white rounded-lg shadow-md hover:bg-orange-600">
+                        Verifikasi Tanda Tangan
+                    </button>
+                    <button id="viewQrCode" class="px-4 py-2 bg-teal-500 text-white rounded-lg shadow-md hover:bg-teal-600">
+                        Lihat QR Code
+                    </button>
+                </div>
+                <div id="qrContainer" class="mt-4"></div>
             </div>
         </div>
     </div>
 
-    <!-- JavaScript -->
     <script>
         const canvas = document.getElementById('signatureCanvas');
         const ctx = canvas.getContext('2d');
-        const clearBtn = document.getElementById('clearCanvas');
-        const saveBtn = document.getElementById('saveSignature');
-        
-        const docId = "{{ document.id }}"; // Mendapatkan ID dokumen dari backend
+        const submitBtn = document.getElementById('submitSignature');
+        const createBtn = document.getElementById('createSignature');
+        const checkBtn = document.getElementById('checkSignature');
+        const viewQrBtn = document.getElementById('viewQrCode');
+        const qrContainer = document.getElementById('qrContainer');
+        const docId = "{{ document.id }}"; // Ambil doc_id dari server-side rendering
+    
         let drawing = false;
-
-        // Event Listener untuk menggambar pada canvas
-        canvas.addEventListener('mousedown', () => { drawing = true; });
-        canvas.addEventListener('mouseup', () => { drawing = false; ctx.beginPath(); });
-        canvas.addEventListener('mousemove', draw);
-        clearBtn.addEventListener('click', clearCanvas);
-
-        function draw(event) {
+    
+        // Event menggambar tanda tangan
+        canvas.addEventListener('mousedown', () => (drawing = true));
+        canvas.addEventListener('mouseup', () => {
+            drawing = false;
+            ctx.beginPath();
+        });
+        canvas.addEventListener('mousemove', (e) => {
             if (!drawing) return;
             ctx.lineWidth = 2;
             ctx.lineCap = 'round';
             ctx.strokeStyle = '#000';
-            ctx.lineTo(event.offsetX, event.offsetY);
+            ctx.lineTo(e.offsetX, e.offsetY);
             ctx.stroke();
             ctx.beginPath();
-            ctx.moveTo(event.offsetX, event.offsetY);
-        }
-
-        function clearCanvas() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-        }
-
-        // Menyimpan tanda tangan ke server
-        saveBtn.addEventListener('click', async function() {
-    const signature = canvas.toDataURL('image/png');  // Mendapatkan data tanda tangan dalam format PNG
-
-    if (signature === 'data:,') {
-        alert('Tanda tangan tidak boleh kosong!');
-        return;
-    }
-
-    const requestData = {
-        data: signature,
-        doc_id: docId
-    };
-
-    saveBtn.disabled = true;
-    saveBtn.textContent = "Menyimpan...";
+            ctx.moveTo(e.offsetX, e.offsetY);
+        });
+    
+        // Membersihkan canvas
+        document.getElementById('clearCanvas').addEventListener('click', () => ctx.clearRect(0, 0, canvas.width, canvas.height));
+    
+        // Kirim tanda tangan ke server
+        submitBtn.addEventListener('click', async () => {
+            const signatureData = canvas.toDataURL('image/png');
+            if (signatureData === 'data:,') {
+                alert('Tanda tangan tidak boleh kosong!');
+                return;
+            }
+    
+            try {
+                const response = await fetch('/signature/add-signature', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        doc_id: docId,
+                        signature: signatureData,
+                    }),
+                });
+    
+                const result = await response.json();
+                if (response.ok) {
+                    alert('Tanda tangan berhasil ditambahkan ke dokumen!');
+                    console.log(result.signature_path);
+                } else {
+                    alert(result.error || 'Gagal menambahkan tanda tangan.');
+                }
+            } catch (error) {
+                console.error('Kesalahan:', error);
+                alert('Terjadi kesalahan saat menyimpan tanda tangan.');
+            }
+        });
+    
+        // Membuat token tanda tangan
+ // Membuat token tanda tangan tanpa input manual
+createBtn.addEventListener('click', async () => {
+    // Pesan default untuk token tanda tangan
+    const message = "Pesan otomatis untuk token tanda tangan";
 
     try {
-    const response = await fetch(`/signature/api/sign`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        },
-        body: JSON.stringify(requestData),
-    });
+        const response = await fetch('/signature/create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                data: message,
+                doc_id: docId,
+            }),
+        });
 
-    console.log(`Status Code: ${response.status}`);
-    console.log(`Headers: ${JSON.stringify(response.headers)}`);
-
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-        throw new Error('Server tidak mengembalikan JSON.');
+        const result = await response.json();
+        if (response.ok) {
+            alert(`Token berhasil dibuat dan disimpan: ${result.token}`);
+            console.log(`Token: ${result.token}`);
+        } else {
+            alert(result.error || "Gagal membuat token.");
+        }
+    } catch (error) {
+        console.error("Kesalahan:", error);
+        alert("Terjadi kesalahan saat membuat token.");
     }
-
-    const result = await response.json();
-    if (response.ok) {
-        alert('Tanda tangan berhasil disimpan!');
-        console.log(result);
-        window.location.reload();
-    } else {
-        console.error(result);
-        alert(result.error || 'Terjadi kesalahan saat menyimpan tanda tangan.');
-    }
-} catch (error) {
-    console.error('Kesalahan:', error);
-    alert(error.message);
-} finally {
-    saveBtn.disabled = false;
-    saveBtn.textContent = "Simpan Tanda Tangan";
-}
-
 });
 
+    
+        // Verifikasi tanda tangan
+      // Verifikasi tanda tangan otomatis
+checkBtn.addEventListener('click', async () => {
+    try {
+        // Ambil token otomatis dari server
+        const tokenResponse = await fetch(`/signature/get-token/${docId}`);
+        const tokenResult = await tokenResponse.json();
+
+        if (!tokenResponse.ok) {
+            alert(tokenResult.error || "Token tidak ditemukan.");
+            return;
+        }
+
+        const token = tokenResult.token;
+
+        // Pesan otomatis untuk verifikasi
+        const message = "Pesan otomatis untuk verifikasi tanda tangan";
+
+        const verifyResponse = await fetch('/signature/check', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                token: token,
+                message: message,
+            }),
+        });
+
+        const verifyResult = await verifyResponse.json();
+        if (verifyResponse.ok) {
+            alert("Tanda tangan valid!");
+        } else {
+            alert(verifyResult.error || "Tanda tangan tidak valid.");
+        }
+    } catch (error) {
+        console.error("Kesalahan:", error);
+        alert("Terjadi kesalahan saat memverifikasi tanda tangan.");
+    }
+});
+
+        // Tampilkan QR Code
+        viewQrBtn.addEventListener('click', async () => {
+            try {
+                const response = await fetch(`/signature/view-qr/${docId}`);
+                if (response.ok) {
+                    const qrBlob = await response.blob();
+                    const qrUrl = URL.createObjectURL(qrBlob);
+                    const qrImage = document.createElement('img');
+                    qrImage.src = qrUrl;
+                    qrImage.alt = "QR Code";
+                    qrContainer.innerHTML = "";
+                    qrContainer.appendChild(qrImage);
+                } else {
+                    const result = await response.json();
+                    alert(result.error || "QR Code tidak ditemukan.");
+                }
+            } catch (error) {
+                console.error("Kesalahan:", error);
+                alert("Terjadi kesalahan saat menampilkan QR Code.");
+            }
+        });
     </script>
-</body>
-</html>
+    

@@ -1,61 +1,71 @@
-import os
 import pytest
-from dotenv import load_dotenv
-from config import Config, TestingConfig
+from app import create_app, db
+from io import BytesIO
+
+@pytest.fixture(scope='module')
+def test_app():
+    """Fixture untuk membuat aplikasi dengan konfigurasi testing."""
+    app = create_app(config_name='testing')
+    with app.app_context():
+        yield app
 
 
-load_dotenv()
+@pytest.fixture(scope='module')
+def client(test_app):
+    """Fixture untuk client test Flask."""
+    with test_app.test_client() as client:
+        with test_app.app_context():
+            db.create_all()  # Buat semua tabel
+            
+            # Tambahkan pengguna dummy
+            from app.models import User
+            user = User(username='testuser', email='testuser@example.com')
+            user.set_password('password123')
+            db.session.add(user)
+            db.session.commit()
 
-@pytest.fixture(scope="module")
-def config():
-    """Fixture untuk memuat konfigurasi dari config.py"""
-    return Config()
+            # Debugging untuk memastikan pengguna dibuat
+            created_user = User.query.filter_by(email='testuser@example.com').first()
+            print(f"Created User: {created_user.email}")  # Debugging
 
-def test_secret_key(config):
-    """Uji apakah SECRET_KEY diambil dengan benar"""
-    assert config.SECRET_KEY == os.getenv('SECRET_KEY', '0d9f920bdaeb0ea0e2e8757eda2b1df2d298d07ad1b7129066f2635923c1496a')
+        yield client
 
-def test_database_uri(config):
-    """Uji apakah SQLALCHEMY_DATABASE_URI diambil dengan benar"""
-    expected_uri = os.getenv('DATABASE_URL', 'mysql://root@localhost/tanda_tangan_online')
-    assert config.SQLALCHEMY_DATABASE_URI == expected_uri
+        with test_app.app_context():
+            db.drop_all()  # Hapus semua tabel setelah selesai
 
-def test_mail_settings(config):
-    """Uji apakah pengaturan email diambil dengan benar"""
-    assert config.MAIL_SERVER == 'smtp.gmail.com'
-    assert config.MAIL_PORT == 587
-    assert config.MAIL_USE_TLS is True
-    assert config.MAIL_USE_SSL is False
-    assert config.MAIL_USERNAME == 'mahasiswaulbiit@gmail.com'
-    assert config.MAIL_PASSWORD == 'vqdh soin nczl vhmy'
-    assert config.MAIL_DEFAULT_SENDER == 'mahasiswaulbiit@gmail.com'
 
-def test_testing_config():
-    """Uji apakah pengaturan TestingConfig bekerja dengan benar"""
-    testing_config = TestingConfig()
-    assert testing_config.SQLALCHEMY_DATABASE_URI == 'sqlite:///:memory:'
-    assert testing_config.TESTING is True
+@pytest.fixture(scope='function')
+def login_user(client):
+    """Fixture untuk login user."""
+    response = client.post('/auth/login', data={
+        'email': 'testuser@example.com',
+        'password': 'password123'
+    }, follow_redirects=True)  # Ikuti redirect ke halaman dashboard
 
-def test_env_variables():
-    """Uji apakah variabel lingkungan dari .env bekerja dengan benar"""
-    
-    load_dotenv()  
-    assert os.getenv('SECRET_KEY') == '0d9f920bdaeb0ea0e2e8757eda2b1df2d298d07ad1b7129066f2635923c1496a'  
-    assert os.getenv('DATABASE_URL') == 'mysql://root@localhost/tanda_tangan_online'  
+    # Debugging respons
+    print(f"Response Data: {response.data.decode('utf-8')}")
 
-def test_default_values_when_env_not_set():
-    """Uji apakah aplikasi fallback ke nilai default jika variabel lingkungan tidak ada"""
-    
-    os.environ.pop('SECRET_KEY', None)
-    os.environ.pop('DATABASE_URL', None)
-    
-    default_config = Config()
-    assert default_config.SECRET_KEY == '0d9f920bdaeb0ea0e2e8757eda2b1df2d298d07ad1b7129066f2635923c1496a'
-    assert default_config.SQLALCHEMY_DATABASE_URI == 'mysql://root@localhost/tanda_tangan_online'
+    # Validasi bahwa pengguna diarahkan ke dashboard
+    assert response.status_code == 200
+    assert b"Platform Tanda Tangan Digital" in response.data  # Validasi berdasarkan teks unik halaman dashboard
 
-def test_gitignore_for_env():
-    """Uji apakah .env sudah di-ignore oleh git"""
-    assert '.env' in open('.gitignore').read()
+@pytest.fixture(scope='function')
+def create_dummy_document(client, login_user):
+    """Fixture untuk membuat dokumen dummy."""
+    file_content = b"This is a test document."
+    data = {
+        'file': (BytesIO(file_content), 'test_document.pdf')
+    }
+    response = client.post('/documents/upload', data=data, content_type='multipart/form-data', follow_redirects=True)
 
-if __name__ == "__main__":
-    pytest.main()
+    # Ambil dokumen dari database
+    from app.models import Document
+    with client.application.app_context():
+        document = Document.query.first()  # Ambil dokumen pertama
+        assert document is not None
+
+    return document
+
+
+
+

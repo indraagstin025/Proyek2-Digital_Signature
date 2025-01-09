@@ -15,13 +15,13 @@
         <!-- Menampilkan Pesan Flash -->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                <div class="space-y-4 mb-6">
-                    {% for category, message in messages %}
-                        <div class="p-4 text-sm text-white rounded-lg {{ 'bg-green-500' if category == 'success' else 'bg-red-500' }}">
-                            {{ message }}
-                        </div>
-                    {% endfor %}
-                </div>
+            <div class="space-y-4 mb-6">
+                {% for category, message in messages %}
+                    <div class="p-4 text-sm text-white rounded-lg {{ 'bg-green-500' if category == 'success' else 'bg-red-500' }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>            
             {% endif %}
         {% endwith %}
 
