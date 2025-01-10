@@ -95,44 +95,27 @@ class Document(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     filename = db.Column(db.String(255), nullable=False)
     filepath = db.Column(db.String(500), nullable=False)
-    file_hash = db.Column(db.String(64), nullable=False)
+    file_hash = db.Column(db.String(64), nullable=False, unique=True)  # Pastikan hash unik
     uploaded_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), nullable=False)
     status = db.Column(db.String(50), default='pending', nullable=False)
     
-    
     user = db.relationship('User', backref=db.backref('documents', lazy=True))
-    # Tidak perlu backref di sini karena sudah diatur di model Signature
 
     @classmethod
-    def is_duplicate(cls, file_content):
-        file_content.seek(0)  # Reset pointer ke awal file
-        file_hash = sha256(file_content).hexdigest()
-        file_content.seek(0)  # Reset ulang setelah hashing
+    def is_duplicate(cls, file_hash):
+        """
+        Check if a document with the same hash already exists.
+        """
         return cls.query.filter_by(file_hash=file_hash).first() is not None
 
-
     @classmethod
-    def create_document(cls, user_id, file, upload_folder):
-        """Buat entri dokumen baru. Menghindari unggahan duplikat dengan memeriksa hash file."""
-        from werkzeug.utils import secure_filename
-        import os
-
-        filename = file.filename
-
-        if not filename or filename.startswith('.') or '..' in filename or '/' in filename or '\\' in filename:
-            raise ValueError("Nama file tidak valid atau berbahaya")
-
-        filename = secure_filename(filename)
-        filepath = os.path.join(upload_folder, filename)
-
-        file_content = file.read()
-        file_hash = sha256(file_content).hexdigest()
-
-        if cls.query.filter_by(file_hash=file_hash).first():
+    def create_document(cls, user_id, filename, filepath, file_hash):
+        """
+        Create a document record in the database.
+        """
+        if cls.is_duplicate(file_hash):
             raise ValueError("Dokumen dengan isi yang sama sudah diunggah sebelumnya.")
-
-        file.seek(0)
-
+        
         new_document = cls(
             user_id=user_id,
             filename=filename,
@@ -147,6 +130,7 @@ class Document(db.Model):
         except IntegrityError:
             db.session.rollback()
             raise ValueError("Terjadi kesalahan saat menyimpan dokumen.")
+
 
 
 class Signature(db.Model):

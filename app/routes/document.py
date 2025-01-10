@@ -7,6 +7,7 @@ from app import db
 from app.utils.sign_token import sign_token
 from app.utils.verify_token import verify_token
 from werkzeug.exceptions import NotFound
+from sqlalchemy import text
 from flask import send_file
 import hashlib
 import mimetypes
@@ -37,7 +38,9 @@ def generate_file_hash(file):
     file.seek(0)  # Make sure to read the file from the start
     for chunk in iter(lambda: file.read(4096), b""):
         hash_sha256.update(chunk)
+    file.seek(0)  # Reset file pointer after hashing
     return hash_sha256.hexdigest()
+
 
 
 @document_bp.route('/upload', methods=['GET', 'POST'])
@@ -63,7 +66,7 @@ def upload_document():
             file_hash = generate_file_hash(file)
 
             # Check for duplicate files
-            if Document.query.filter_by(file_hash=file_hash).first():
+            if Document.is_duplicate(file_hash):
                 flash('A document with the same content already exists.', 'error')
                 return redirect(url_for('document.list_documents'))
 
@@ -74,19 +77,25 @@ def upload_document():
             # Save document to database
             new_document = Document.create_document(
                 user_id=current_user.id,
-                file=file,
-                upload_folder=UPLOAD_FOLDER
+                filename=filename,
+                filepath=filepath,
+                file_hash=file_hash
             )
 
             # Create token for the document
             token = sign_token(file_hash)
 
             # Save signature to database
-            Signature.create_signature(
+            signature = Signature.create_signature(
                 document_id=new_document.id,
                 user_id=current_user.id,
                 token=token
             )
+
+            # Verify signature and update status
+            is_valid = verify_token(token, file_hash)
+            signature.status = 'valid' if is_valid else 'invalid'
+            db.session.commit()
 
             flash('Document uploaded and signed successfully!', 'success')
             return redirect(url_for('document.list_documents'))
@@ -96,6 +105,7 @@ def upload_document():
             flash(f'An error occurred: {str(e)}', 'error')
 
     return render_template('upload_document.html')
+
 
 
 @document_bp.route('/documents', methods=['GET'])
@@ -139,13 +149,20 @@ def verify_document_signature(doc_id):
         if not signature:
             return jsonify({"error": "Signature not found for this document."}), 404
 
+        # Verify the signature using the token and file hash
         is_valid = verify_token(signature.token, document.file_hash)
+        signature.status = 'valid' if is_valid else 'invalid'
+        db.session.commit()
+
         if is_valid:
             return jsonify({"message": "Signature is valid."}), 200
         else:
             return jsonify({"error": "Signature is invalid."}), 400
     except Exception as e:
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+
+
+
 
 
 @document_bp.route('/document/delete/<int:doc_id>', methods=['POST'])
@@ -171,9 +188,10 @@ def delete_document(doc_id):
         # Hapus file dari sistem
         if os.path.exists(filepath):
             os.remove(filepath)
-            
+
+        # Reset AUTO_INCREMENT jika tabel kosong
         if Document.query.count() == 0:
-            db.session.execute("ALTER TABLE document AUTO_INCREMENT = 1")
+            db.session.execute(text("ALTER TABLE document AUTO_INCREMENT = 1"))
             db.session.commit()
 
         flash("Document deleted successfully.", 'success')
@@ -182,4 +200,3 @@ def delete_document(doc_id):
         flash(f"Failed to delete document: {str(e)}", 'error')
 
     return redirect(url_for('document.list_documents'))
-

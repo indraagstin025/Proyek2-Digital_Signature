@@ -1,15 +1,12 @@
 import qrcode
-import os
+import logging
 
-def generate_qr_code(data, output_folder, filename):
-    """Generate QR Code dari data dan simpan sebagai file PNG."""
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder, exist_ok=True)
-    
-    if len(data) > 1000:  # Contoh batas panjang
-        raise ValueError("Data terlalu besar untuk QR Code.")
-
-
+def generate_qr_code(data, output_path):
+    """
+    Fungsi untuk membuat QR Code berdasarkan data yang diberikan.
+    :param data: Data untuk QR Code
+    :param output_path: Lokasi file untuk menyimpan QR Code
+    """
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_L,
@@ -18,8 +15,8 @@ def generate_qr_code(data, output_folder, filename):
     )
     qr.add_data(data)
     qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white")
 
-    output_path = os.path.join(output_folder, f"{filename}.png")
+    # Buat gambar QR Code dan simpan ke file
+    img = qr.make_image(fill="black", back_color="white")
     img.save(output_path)
-    return output_path
+    logging.info(f"QR Code berhasil disimpan di: {output_path}")

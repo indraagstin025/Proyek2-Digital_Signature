@@ -69,13 +69,23 @@
                                        title="Lihat Dokumen">
                                         <i class="fas fa-eye text-lg"></i>
                                     </a>
+                                </td>
                                     <!-- Tombol Verifikasi Tanda Tangan -->
                                     {% if document.signatures %}
-                                        <form action="{{ url_for('document.verify_document_signature', doc_id=document.id) }}" method="post" class="inline-block">
-                                            <button type="submit" class="text-green-500 hover:text-green-700 mx-2" title="Verifikasi Tanda Tangan">
-                                                <i class="fas fa-check-circle text-lg"></i>
-                                            </button>
-                                        </form>
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                        {% if document.signatures %}
+                                            {% set signature = document.signatures[0] %}
+                                            {% if signature.status == 'valid' %}
+                                                <span class="text-green-600 font-semibold">Valid</span>
+                                            {% elif signature.status == 'invalid' %}
+                                                <span class="text-red-600 font-semibold">Invalid</span>
+                                            {% else %}
+                                                <span class="text-yellow-600 font-semibold">Pending</span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="text-red-600 font-semibold">Belum Ditandatangani</span>
+                                        {% endif %}
+                                    
                                     {% endif %}
                                     <!-- Tombol Delete -->
                                     <form action="{{ url_for('document.delete_document', doc_id=document.id) }}" method="post" class="inline-block">

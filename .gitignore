@@ -13,4 +13,6 @@ htmlcov
 
 uploads
 
+static
+
 .coverage
