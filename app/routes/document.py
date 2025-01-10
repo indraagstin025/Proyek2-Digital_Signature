@@ -54,6 +54,7 @@ def upload_document():
             return redirect(url_for('document.list_documents'))
 
         try:
+            # Buat folder upload jika belum ada
             create_upload_folder_if_not_exists()
 
             # Generate file details
