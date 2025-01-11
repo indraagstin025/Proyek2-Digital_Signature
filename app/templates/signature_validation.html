@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Validasi Tanda Tangan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .container {
+            max-width: 800px;
+            margin: auto;
+            padding: 20px;
+        }
+
+        .header {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #2d3748;
+        }
+
+        .info-card {
+            padding: 20px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background-color: #f7fafc;
+            margin-bottom: 20px;
+        }
+
+        .info-card h2 {
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+
+        .info-card p {
+            margin: 5px 0;
+        }
+
+        img {
+            max-width: 200px;
+            margin-top: 20px;
+            border: 2px solid #4a5568;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container">
+        <div class="header">Informasi Validasi Tanda Tangan</div>
+        <div class="info-card">
+            <h2>Detail Tanda Tangan</h2>
+            <p><strong>Nama Dokumen:</strong> {{ document_name }}</p>
+            <p><strong>Ditandatangani Oleh:</strong> {{ signed_by }}</p>
+            <p><strong>Waktu Tanda Tangan:</strong> {{ timestamp }}</p>
+        </div>
+        <div class="info-card">
+            <h2>QR Code</h2>
+            {% if signature_image %}
+                <img src="{{ url_for('static', filename=signature_image.split('static/')[-1]) }}" alt="QR Code">
+            {% else %}
+                <p>QR Code tidak ditemukan.</p>
+            {% endif %}
+        </div>
+        <div class="mt-4">
+            <a href="/" class="text-blue-500 hover:underline">Kembali ke Halaman Utama</a>
+        </div>
+    </div>
+</body>
+</html>

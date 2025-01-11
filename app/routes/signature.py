@@ -2,10 +2,12 @@ from flask import Blueprint, request, jsonify, send_file
 from app.utils.sign_token import sign_token
 from app.utils.verify_token import verify_token
 from app.utils.qr_utils import generate_qr_code
+from app.utils.add_qr_to_pdf import add_qr_to_pdf
 from app.utils.add_signature_to_pdf import add_signature_to_pdf
 from flask_login import login_required, current_user
 from app.models import Signature, Document
 from app.extensions import db
+from flask import render_template
 from PIL import Image
 from io import BytesIO
 import base64
@@ -73,9 +75,13 @@ def add_signature():
         message_to_sign = f"Tanda tangan untuk dokumen: {document.filename}, oleh {current_user.email}"
         token = sign_token(message_to_sign)
 
+        # Base URL untuk validasi QR Code
+        base_url = "http://127.0.0.1:5000/signature/validate"
+        validation_url = f"{base_url}?token={token}"  # Buat URL validasi
+
         # Generate QR Code
         qr_code_path = os.path.join(SIGNATURE_FOLDER, f"{document_hash}_qr.png")
-        generate_qr_code(token, qr_code_path)
+        generate_qr_code(validation_url, qr_code_path)  # Gunakan URL validasi sebagai data untuk QR
 
         # Simpan tanda tangan ke database
         signature = Signature.create_signature(
@@ -94,12 +100,15 @@ def add_signature():
             "message": "Tanda tangan berhasil ditambahkan.",
             "signature_path": signature_path,
             "qr_code_path": qr_code_path,
-            "token": token  # Kembalikan token yang dihasilkan
+            "token": token,
+            "validation_url": validation_url  # Kembalikan URL validasi untuk keperluan debug/testing
         }), 201
 
     except Exception as e:
         logging.error(f"Terjadi kesalahan: {e}")
         return jsonify({"error": f"Terjadi kesalahan: {str(e)}"}), 500
+
+
 
 
 @signature_bp.route('/create', methods=['POST'])
@@ -253,6 +262,7 @@ def get_token(document_hash):
 @login_required
 def generate_signed_doc(document_hash):
     try:
+        # Ambil dokumen dan tanda tangan berdasarkan hash
         document = Document.query.filter_by(doc_hash=document_hash).first_or_404()
         signature = Signature.query.filter_by(document_hash=document_hash).first()
 
@@ -262,17 +272,31 @@ def generate_signed_doc(document_hash):
         if document.user_id != current_user.id:
             return jsonify({"error": "Anda tidak memiliki izin untuk dokumen ini."}), 403
 
+        # Path dokumen asli dan tanda tangan
         pdf_path = document.filepath
         qr_code_path = signature.qr_code_path
         output_path = os.path.join(SIGNATURE_FOLDER, f"{document_hash}_signed.pdf")
 
+        # Tambahkan QR Code ke PDF
+        if not os.path.exists(pdf_path):
+            return jsonify({"error": f"File dokumen asli tidak ditemukan: {pdf_path}"}), 404
+
+        if not os.path.exists(qr_code_path):
+            return jsonify({"error": f"QR Code tidak ditemukan: {qr_code_path}"}), 404
+
         add_signature_to_pdf(pdf_path, qr_code_path, output_path)
 
+        # Pastikan file output benar-benar dibuat
+        if not os.path.exists(output_path):
+            return jsonify({"error": f"File bertanda tangan tidak ditemukan setelah diproses: {output_path}"}), 500
+
+        # Kirim file bertanda tangan ke user
         return send_file(output_path, as_attachment=True)
 
     except Exception as e:
         logging.error(f"Terjadi kesalahan saat membuat dokumen bertanda tangan: {e}")
         return jsonify({"error": f"Terjadi kesalahan: {str(e)}"}), 500
+
 
 @signature_bp.route('/delete-signatures', methods=['POST'])
 @login_required
@@ -293,3 +317,51 @@ def delete_signatures():
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"Terjadi kesalahan: {str(e)}"}), 500
+    
+    
+@signature_bp.route('/validate', methods=['GET'])
+def validate_qr():
+    try:
+        token = request.args.get('token')
+        if not token:
+            return jsonify({"error": "Token tidak ditemukan."}), 400
+
+        # Ambil informasi dari token
+        signature = Signature.query.filter_by(token=token).first_or_404()
+
+        # Pastikan token valid
+        expected_message = f"Tanda tangan untuk dokumen: {signature.document_name}, oleh {signature.signer_email}"
+        if not verify_token(token, expected_message):
+            return jsonify({"error": "Token tidak valid atau pesan tidak cocok."}), 400
+
+        # Render halaman validasi
+        return render_template(
+            "signature_validation.html",
+            document_name=signature.document_name,
+            signed_by=signature.signer_email,
+            timestamp=signature.timestamp,
+            signature_image=signature.qr_code_path  # Menampilkan QR Code jika diperlukan
+        )
+
+    except Exception as e:
+        logging.error(f"Terjadi kesalahan saat validasi: {e}")
+        return jsonify({"error": f"Terjadi kesalahan: {str(e)}"}), 500
+
+    
+@signature_bp.route('/view-signature/<string:document_hash>', methods=['GET'])
+def view_signature(document_hash):
+    try:
+        signature = Signature.query.filter_by(document_hash=document_hash).first_or_404()
+
+        if not signature.qr_code_path or not os.path.exists(signature.qr_code_path):
+            return jsonify({"error": "Tanda tangan tidak ditemukan"}), 404
+
+        return send_file(signature.qr_code_path, mimetype='image/png')
+
+    except Exception as e:
+        logging.error(f"Terjadi kesalahan saat melihat tanda tangan: {e}")
+        return jsonify({"error": f"Terjadi kesalahan: {str(e)}"}), 500
+
+
+
+

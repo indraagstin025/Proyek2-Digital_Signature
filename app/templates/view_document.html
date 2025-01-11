@@ -56,12 +56,6 @@
                     <div class="mt-6">
                         <h3 class="text-lg font-semibold mb-2">Tanda Tangan dan QR Code:</h3>
                         <div class="flex gap-4">
-                            <button id="createSignature" class="px-4 py-2 bg-purple-500 text-white rounded-lg shadow-md hover:bg-purple-600">
-                                Buat Token Tanda Tangan
-                            </button>
-                            <button id="checkSignature" class="px-4 py-2 bg-orange-500 text-white rounded-lg shadow-md hover:bg-orange-600">
-                                Verifikasi Tanda Tangan
-                            </button>
                             <button id="viewQrCode" class="px-4 py-2 bg-teal-500 text-white rounded-lg shadow-md hover:bg-teal-600">
                                 Lihat QR Code
                             </button>
@@ -75,21 +69,28 @@
                     <iframe src="{{ url_for('static', filename='uploads/' ~ document.filename) }}"></iframe>
                 </div>
             </div>
+
+            <div class="mt-6">
+                <button id="downloadSignedDoc" class="px-4 py-2 bg-green-500 text-white rounded-lg shadow-md hover:bg-green-600">
+                    Unduh Dokumen dengan QR
+                </button>
+            </div>
         </div>
     </div>
 
     <script>
+        const qrWrapper = document.getElementById('qrWrapper');
         const canvas = document.getElementById('signatureCanvas');
         const ctx = canvas.getContext('2d');
         const submitBtn = document.getElementById('submitSignature');
-        const createBtn = document.getElementById('createSignature');
-        const checkBtn = document.getElementById('checkSignature');
         const viewQrBtn = document.getElementById('viewQrCode');
+        const downloadSignedDocBtn = document.getElementById('downloadSignedDoc');
         const qrContainer = document.getElementById('qrContainer');
-        const docHash = "{{ document.hash }}"; // Ambil hash dokumen dari server-side rendering
-    
+        const docHash = "{{ document.doc_hash }}";  // Pastikan Jinja2 menyisipkan nilai yang benar
+        console.log("Document Hash:", docHash);  
+
         let drawing = false;
-    
+
         // Event menggambar tanda tangan
         canvas.addEventListener('mousedown', () => (drawing = true));
         canvas.addEventListener('mouseup', () => {
@@ -106,108 +107,58 @@
             ctx.beginPath();
             ctx.moveTo(e.offsetX, e.offsetY);
         });
-    
+
         // Membersihkan canvas
         document.getElementById('clearCanvas').addEventListener('click', () => ctx.clearRect(0, 0, canvas.width, canvas.height));
-    
+
         // Kirim tanda tangan ke server
         submitBtn.addEventListener('click', async () => {
-            const signatureData = canvas.toDataURL('image/png');
-            if (signatureData === 'data:,') {
-                alert('Tanda tangan tidak boleh kosong!');
-                return;
-            }
-    
-            try {
-                const response = await fetch('/signature/add-signature', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        document_hash: docHash,
-                        signature: signatureData,
-                    }),
-                });
-    
-                const result = await response.json();
-                if (response.ok) {
-                    alert('Tanda tangan berhasil ditambahkan ke dokumen!');
-                    console.log(result.signature_path);
-                } else {
-                    alert(result.error || 'Gagal menambahkan tanda tangan.');
-                }
-            } catch (error) {
-                console.error('Kesalahan:', error);
-                alert('Terjadi kesalahan saat menyimpan tanda tangan.');
-            }
-        });
-    
-        // Membuat token tanda tangan
-        createBtn.addEventListener('click', async () => {
-            const message = "Pesan otomatis untuk token tanda tangan";
+    // Ambil data tanda tangan dari canvas
+    const signatureData = canvas.toDataURL('image/png');
+    if (!signatureData || signatureData === 'data:,') {
+        alert('Tanda tangan tidak boleh kosong!');
+        return;
+    }
 
-            try {
-                const response = await fetch('/signature/create', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        data: message,
-                        document_hash: docHash,
-                    }),
-                });
+    // Validasi document_hash
+    if (!docHash) {
+        alert('Document hash tidak tersedia. Hubungi administrator!');
+        return;
+    }
 
-                const result = await response.json();
-                if (response.ok) {
-                    alert(`Token berhasil dibuat dan disimpan: ${result.token}`);
-                    console.log(`Token: ${result.token}`);
-                } else {
-                    alert(result.error || "Gagal membuat token.");
-                }
-            } catch (error) {
-                console.error("Kesalahan:", error);
-                alert("Terjadi kesalahan saat membuat token.");
-            }
+    // Kirim data ke server
+    try {
+        const response = await fetch('http://127.0.0.1:5000/signature/add-signature', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                document_hash: docHash, // Pastikan document_hash tersedia
+                signature: signatureData, // Base64 data tanda tangan
+            }),
         });
 
-        // Verifikasi tanda tangan
-        checkBtn.addEventListener('click', async () => {
-            try {
-                const tokenResponse = await fetch(`/signature/get-token/${docHash}`);
-                const tokenResult = await tokenResponse.json();
+        const result = await response.json();
+        if (response.ok) {
+            alert('Tanda tangan berhasil ditambahkan!');
+            console.log('Token:', result.token);
+            console.log('Validation URL:', result.validation_url);
 
-                if (!tokenResponse.ok) {
-                    alert(tokenResult.error || "Token tidak ditemukan.");
-                    return;
-                }
+            // Tampilkan URL validasi
+            const validationLink = document.createElement('a');
+            validationLink.href = result.validation_url;
+            validationLink.textContent = 'Lihat Validasi Tanda Tangan';
+            validationLink.target = '_blank';
+            qrContainer.innerHTML = ""; // Kosongkan container QR sebelumnya
+            qrContainer.appendChild(validationLink); // Tampilkan URL validasi
+        } else {
+            alert(result.error || 'Gagal menambahkan tanda tangan.');
+        }
+    } catch (error) {
+        console.error('Kesalahan:', error);
+        alert('Terjadi kesalahan saat menyimpan tanda tangan.');
+    }
+});
 
-                const token = tokenResult.token;
-                const message = "Pesan otomatis untuk verifikasi tanda tangan";
-
-                const verifyResponse = await fetch('/signature/check', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        token: token,
-                        message: message,
-                    }),
-                });
-
-                const verifyResult = await verifyResponse.json();
-                if (verifyResponse.ok) {
-                    alert("Tanda tangan valid!");
-                } else {
-                    alert(verifyResult.error || "Tanda tangan tidak valid.");
-                }
-            } catch (error) {
-                console.error("Kesalahan:", error);
-                alert("Terjadi kesalahan saat memverifikasi tanda tangan.");
-            }
-        });
 
         // Tampilkan QR Code
         viewQrBtn.addEventListener('click', async () => {
@@ -223,12 +174,85 @@
                     qrContainer.appendChild(qrImage);
                 } else {
                     const result = await response.json();
-                    alert(result.error || "QR Code tidak ditemukan.");
+                    alert(result.error || 'QR Code tidak ditemukan.');
                 }
             } catch (error) {
-                console.error("Kesalahan:", error);
-                alert("Terjadi kesalahan saat menampilkan QR Code.");
+                console.error('Kesalahan:', error);
             }
+        });
+
+        interact('.resize-drag')
+            .draggable({
+                listeners: {
+                    move(event) {
+                        const target = event.target;
+                        const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
+                        const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
+
+                        // Update posisi
+                        target.style.transform = `translate(${x}px, ${y}px)`;
+                        target.setAttribute('data-x', x);
+                        target.setAttribute('data-y', y);
+                    },
+                },
+            })
+            .resizable({
+                edges: { left: true, right: true, bottom: true, top: true },
+                listeners: {
+                    move(event) {
+                        const target = event.target;
+                        let { width, height } = event.rect;
+
+                        target.style.width = `${width}px`;
+                        target.style.height = `${height}px`;
+
+                        const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.deltaRect.left;
+                        const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.deltaRect.top;
+
+                        target.style.transform = `translate(${x}px, ${y}px)`;
+                        target.setAttribute('data-x', x);
+                        target.setAttribute('data-y', y);
+                    },
+                },
+            });
+
+        // Save QR Code position and size
+        saveQrSettingsBtn.addEventListener('click', async () => {
+            const x = qrWrapper.getAttribute('data-x') || 0;
+            const y = qrWrapper.getAttribute('data-y') || 0;
+            const width = qrWrapper.offsetWidth;
+            const height = qrWrapper.offsetHeight;
+
+            console.log(`Posisi QR Code: (${x}, ${y}), Ukuran: ${width}x${height}`);
+
+            try {
+                const response = await fetch('/save-qr-settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        document_hash: docHash,
+                        x,
+                        y,
+                        width,
+                        height,
+                    }),
+                });
+
+                if (response.ok) {
+                    alert('Posisi dan ukuran QR Code berhasil disimpan.');
+                } else {
+                    const result = await response.json();
+                    alert(result.error || 'Gagal menyimpan posisi QR Code.');
+                }
+            } catch (error) {
+                console.error('Kesalahan:', error);
+                alert('Terjadi kesalahan saat menyimpan posisi QR Code.');
+            }
+        });
+
+        // Unduh dokumen dengan QR Code
+        downloadSignedDocBtn.addEventListener('click', () => {
+            window.open(`/signature/generate-signed-doc/${docHash}`, '_blank');
         });
     </script>
 </body>

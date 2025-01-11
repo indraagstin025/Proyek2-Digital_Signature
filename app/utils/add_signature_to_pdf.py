@@ -1,35 +1,31 @@
 from PyPDF2 import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
-from io import BytesIO
+import io
 
-def add_signature_to_pdf(pdf_path, signature_path, output_path, x=50, y=50):
-    """
-    Menambahkan tanda tangan ke dokumen PDF.
+def add_signature_to_pdf(pdf_path, qr_path, output_path):
+    try:
+        # Buka PDF asli
+        reader = PdfReader(pdf_path)
+        writer = PdfWriter()
 
-    :param pdf_path: Path ke dokumen PDF asli.
-    :param signature_path: Path ke gambar tanda tangan.
-    :param output_path: Path untuk menyimpan PDF baru dengan tanda tangan.
-    :param x: Koordinat X untuk gambar tanda tangan.
-    :param y: Koordinat Y untuk gambar tanda tangan.
-    """
-    # Baca PDF asli
-    reader = PdfReader(pdf_path)
-    writer = PdfWriter()
+        # Siapkan QR Code sebagai gambar
+        for page in reader.pages:
+            packet = io.BytesIO()
+            can = canvas.Canvas(packet, pagesize=letter)
+            can.drawImage(qr_path, 450, 50, width=100, height=100)  # Atur posisi QR di halaman
+            can.save()
 
-    # Tambahkan tanda tangan ke halaman pertama
-    packet = BytesIO()
-    can = canvas.Canvas(packet, pagesize=letter)
-    can.drawImage(signature_path, x, y, width=200, height=100)  # Atur ukuran tanda tangan
-    can.save()
+            # Gabungkan dengan halaman PDF asli
+            packet.seek(0)
+            new_pdf = PdfReader(packet)
+            page.merge_page(new_pdf.pages[0])
+            writer.add_page(page)
 
-    # Gabungkan tanda tangan ke PDF asli
-    packet.seek(0)
-    overlay = PdfReader(packet)
-    for page in reader.pages:
-        page.merge_page(overlay.pages[0])  # Gabungkan dengan tanda tangan
-        writer.add_page(page)
-
-    # Simpan hasil PDF baru
-    with open(output_path, "wb") as f_out:
-        writer.write(f_out)
+        # Simpan PDF baru
+        with open(output_path, "wb") as output_file:
+            writer.write(output_file)
+        return True
+    except Exception as e:
+        print(f"Error saat menambahkan QR ke PDF: {e}")
+        return False

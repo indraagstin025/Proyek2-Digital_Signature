@@ -3,15 +3,19 @@ import os
 import logging
 import json
 
-def verify_token(token, message):
-    if not isinstance(message, str):
-        raise TypeError("Pesan harus berupa string")
-
-    # Memuat kunci publik dari file
+def verify_token(token, message=None):
+    """
+    Verifikasi token menggunakan kunci publik.
+    :param token: Token PASETO yang akan diverifikasi.
+    :param message: Pesan yang diharapkan (opsional).
+    :return: Payload jika token valid, atau None jika tidak valid.
+    """
+    # Memastikan PUBLIC_KEY_PATH ada
     public_key_path = os.getenv("PUBLIC_KEY_PATH")
     if not os.path.exists(public_key_path):
         raise FileNotFoundError(f"Kunci publik tidak ditemukan: {public_key_path}")
 
+    # Membaca kunci publik dari file
     with open(public_key_path, "rb") as f:
         public_key_pem = f.read()
 
@@ -34,11 +38,15 @@ def verify_token(token, message):
         payload = json.loads(payload_bytes.decode("utf-8"))
         logging.info(f"Payload setelah parsing: {payload}")
 
-        # Validasi pesan
-        if payload.get("message") != message:
-            logging.error("Pesan tidak cocok dengan payload.")
-            return False
-        return True
+        # Jika pesan diberikan, cocokkan dengan payload
+        if message is not None:
+            if payload.get("message") != message:
+                logging.error("Pesan tidak cocok dengan payload.")
+                return None  # Pesan tidak cocok
+
+        # Jika valid, kembalikan payload
+        return payload
+
     except Exception as e:
         logging.error(f"Gagal mendekode token: {e}")
-        return False
+        return None
