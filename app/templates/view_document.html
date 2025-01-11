@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pratinjau Dokumen</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/interact.js/1.10.11/interact.min.js"></script>
     <style>
         #documentContainer {
             width: 100%;
             height: 500px;
             border: 1px solid #d1d5db;
-            overflow: hidden;
+            position: relative;
         }
 
         #signatureCanvas {
@@ -19,18 +19,23 @@
             background-color: rgba(255, 255, 255, 0.8);
         }
 
+        #qrContainer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 10;
+            width: 200px;
+            height: 200px;
+            border: 2px solid #4a5568;
+            border-radius: 8px;
+            background-color: rgba(255, 255, 255, 0.9);
+        }
+
         iframe {
             display: block;
             width: 100%;
             height: 100%;
             border: none;
-        }
-
-        #qrContainer img {
-            max-width: 200px;
-            border: 2px solid #4a5568;
-            border-radius: 8px;
-            margin-top: 10px;
         }
     </style>
 </head>
@@ -51,22 +56,14 @@
                             Kirim ke Server
                         </button>
                     </div>
-
-                    <!-- Tombol fitur tambahan -->
-                    <div class="mt-6">
-                        <h3 class="text-lg font-semibold mb-2">Tanda Tangan dan QR Code:</h3>
-                        <div class="flex gap-4">
-                            <button id="viewQrCode" class="px-4 py-2 bg-teal-500 text-white rounded-lg shadow-md hover:bg-teal-600">
-                                Lihat QR Code
-                            </button>
-                        </div>
-                        <div id="qrContainer" class="mt-4"></div>
-                    </div>
                 </div>
 
                 <!-- Dokumen -->
                 <div class="flex-1" id="documentContainer">
                     <iframe src="{{ url_for('static', filename='uploads/' ~ document.filename) }}"></iframe>
+                    <div id="qrContainer" class="resize-drag">
+                        <img id="qrImage" src="" alt="QR Code" style="width: 100%; height: 100%;">
+                    </div>
                 </div>
             </div>
 
@@ -79,24 +76,44 @@
     </div>
 
     <script>
-        const qrWrapper = document.getElementById('qrWrapper');
         const canvas = document.getElementById('signatureCanvas');
         const ctx = canvas.getContext('2d');
         const submitBtn = document.getElementById('submitSignature');
-        const viewQrBtn = document.getElementById('viewQrCode');
+        const clearCanvasBtn = document.getElementById('clearCanvas');
         const downloadSignedDocBtn = document.getElementById('downloadSignedDoc');
         const qrContainer = document.getElementById('qrContainer');
-        const docHash = "{{ document.doc_hash }}";  // Pastikan Jinja2 menyisipkan nilai yang benar
-        console.log("Document Hash:", docHash);  
+        const qrImage = document.getElementById('qrImage');
+        const docHash = "{{ document.doc_hash }}"; // Dari backend
 
-        let drawing = false;
+        // Gambar QR Code drag & resize
+        interact('#qrContainer')
+            .draggable({
+                listeners: {
+                    move(event) {
+                        const { dx, dy } = event;
+                        const style = window.getComputedStyle(qrContainer);
+                        const matrix = new DOMMatrixReadOnly(style.transform);
+                        const x = (matrix.m41 || 0) + dx;
+                        const y = (matrix.m42 || 0) + dy;
+                        qrContainer.style.transform = `translate(${x}px, ${y}px)`;
+                    }
+                }
+            })
+            .resizable({
+                edges: { left: true, right: true, bottom: true, top: true },
+                listeners: {
+                    move(event) {
+                        const { width, height } = event.rect;
+                        qrContainer.style.width = `${width}px`;
+                        qrContainer.style.height = `${height}px`;
+                    }
+                }
+            });
 
         // Event menggambar tanda tangan
-        canvas.addEventListener('mousedown', () => (drawing = true));
-        canvas.addEventListener('mouseup', () => {
-            drawing = false;
-            ctx.beginPath();
-        });
+        let drawing = false;
+        canvas.addEventListener('mousedown', () => drawing = true);
+        canvas.addEventListener('mouseup', () => { drawing = false; ctx.beginPath(); });
         canvas.addEventListener('mousemove', (e) => {
             if (!drawing) return;
             ctx.lineWidth = 2;
@@ -109,144 +126,33 @@
         });
 
         // Membersihkan canvas
-        document.getElementById('clearCanvas').addEventListener('click', () => ctx.clearRect(0, 0, canvas.width, canvas.height));
+        clearCanvasBtn.addEventListener('click', () => ctx.clearRect(0, 0, canvas.width, canvas.height));
 
         // Kirim tanda tangan ke server
         submitBtn.addEventListener('click', async () => {
-    // Ambil data tanda tangan dari canvas
-    const signatureData = canvas.toDataURL('image/png');
-    if (!signatureData || signatureData === 'data:,') {
-        alert('Tanda tangan tidak boleh kosong!');
-        return;
-    }
-
-    // Validasi document_hash
-    if (!docHash) {
-        alert('Document hash tidak tersedia. Hubungi administrator!');
-        return;
-    }
-
-    // Kirim data ke server
-    try {
-        const response = await fetch('http://127.0.0.1:5000/signature/add-signature', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                document_hash: docHash, // Pastikan document_hash tersedia
-                signature: signatureData, // Base64 data tanda tangan
-            }),
-        });
-
-        const result = await response.json();
-        if (response.ok) {
-            alert('Tanda tangan berhasil ditambahkan!');
-            console.log('Token:', result.token);
-            console.log('Validation URL:', result.validation_url);
-
-            // Tampilkan URL validasi
-            const validationLink = document.createElement('a');
-            validationLink.href = result.validation_url;
-            validationLink.textContent = 'Lihat Validasi Tanda Tangan';
-            validationLink.target = '_blank';
-            qrContainer.innerHTML = ""; // Kosongkan container QR sebelumnya
-            qrContainer.appendChild(validationLink); // Tampilkan URL validasi
-        } else {
-            alert(result.error || 'Gagal menambahkan tanda tangan.');
-        }
-    } catch (error) {
-        console.error('Kesalahan:', error);
-        alert('Terjadi kesalahan saat menyimpan tanda tangan.');
-    }
-});
-
-
-        // Tampilkan QR Code
-        viewQrBtn.addEventListener('click', async () => {
-            try {
-                const response = await fetch(`/signature/view-qr/${docHash}`);
-                if (response.ok) {
-                    const qrBlob = await response.blob();
-                    const qrUrl = URL.createObjectURL(qrBlob);
-                    const qrImage = document.createElement('img');
-                    qrImage.src = qrUrl;
-                    qrImage.alt = "QR Code";
-                    qrContainer.innerHTML = "";
-                    qrContainer.appendChild(qrImage);
-                } else {
-                    const result = await response.json();
-                    alert(result.error || 'QR Code tidak ditemukan.');
-                }
-            } catch (error) {
-                console.error('Kesalahan:', error);
+            const signatureData = canvas.toDataURL('image/png');
+            if (!signatureData || signatureData === 'data:,') {
+                alert('Tanda tangan tidak boleh kosong!');
+                return;
             }
-        });
-
-        interact('.resize-drag')
-            .draggable({
-                listeners: {
-                    move(event) {
-                        const target = event.target;
-                        const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
-                        const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
-
-                        // Update posisi
-                        target.style.transform = `translate(${x}px, ${y}px)`;
-                        target.setAttribute('data-x', x);
-                        target.setAttribute('data-y', y);
-                    },
-                },
-            })
-            .resizable({
-                edges: { left: true, right: true, bottom: true, top: true },
-                listeners: {
-                    move(event) {
-                        const target = event.target;
-                        let { width, height } = event.rect;
-
-                        target.style.width = `${width}px`;
-                        target.style.height = `${height}px`;
-
-                        const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.deltaRect.left;
-                        const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.deltaRect.top;
-
-                        target.style.transform = `translate(${x}px, ${y}px)`;
-                        target.setAttribute('data-x', x);
-                        target.setAttribute('data-y', y);
-                    },
-                },
-            });
-
-        // Save QR Code position and size
-        saveQrSettingsBtn.addEventListener('click', async () => {
-            const x = qrWrapper.getAttribute('data-x') || 0;
-            const y = qrWrapper.getAttribute('data-y') || 0;
-            const width = qrWrapper.offsetWidth;
-            const height = qrWrapper.offsetHeight;
-
-            console.log(`Posisi QR Code: (${x}, ${y}), Ukuran: ${width}x${height}`);
 
             try {
-                const response = await fetch('/save-qr-settings', {
+                const response = await fetch(`/signature/add-signature`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        document_hash: docHash,
-                        x,
-                        y,
-                        width,
-                        height,
-                    }),
+                    body: JSON.stringify({ document_hash: docHash, signature: signatureData })
                 });
 
+                const result = await response.json();
                 if (response.ok) {
-                    alert('Posisi dan ukuran QR Code berhasil disimpan.');
+                    alert('Tanda tangan berhasil ditambahkan!');
+                    qrImage.src = `/signature/view-qr/${docHash}`;
                 } else {
-                    const result = await response.json();
-                    alert(result.error || 'Gagal menyimpan posisi QR Code.');
+                    alert(result.error || 'Gagal menambahkan tanda tangan.');
                 }
             } catch (error) {
                 console.error('Kesalahan:', error);
-                alert('Terjadi kesalahan saat menyimpan posisi QR Code.');
+                alert('Terjadi kesalahan saat menyimpan tanda tangan.');
             }
         });
 

@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pratinjau Dokumen dengan Tanda Tangan</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/interact.js/1.10.11/interact.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        #pdf-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            overflow: auto;
+            background-color: #f4f4f9;
+            position: relative;
+        }
+
+        canvas {
+            max-width: 100%;
+            max-height: 100%;
+            border: 1px solid #ddd;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        }
+
+        .drag-item {
+            position: absolute;
+            border: 2px dashed #4a5568;
+            background-color: white;
+            z-index: 100;
+            cursor: move;
+        }
+
+        .resize {
+            resize: both;
+            overflow: hidden;
+        }
+
+        #qrWrapper img {
+            width: 150px;
+            height: 150px;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 h-screen flex">
+
+    <!-- Sidebar Menu -->
+    <div class="w-64 bg-gray-900 text-white flex flex-col">
+        <div class="p-4 text-2xl font-bold text-center border-b border-gray-700">Tanda Tangan</div>
+        <ul class="flex-1 space-y-2 p-4">
+            <li id="draw-mode" class="flex items-center space-x-2 cursor-pointer hover:bg-gray-700 p-2 rounded">
+                <span>✏️</span>
+                <span>Gambar QR Code</span>
+            </li>
+            <li id="download-doc" class="flex items-center space-x-2 cursor-pointer hover:bg-gray-700 p-2 rounded">
+                <span>⬇️</span>
+                <span>Unduh dengan QR</span>
+            </li>
+        </ul>
+        <div class="p-4">
+            <button id="send-to-server" class="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded">Kirim ke Server</button>
+        </div>
+    </div>
+
+    <!-- PDF Viewer Section -->
+    <div class="flex-1 flex flex-col">
+        <div class="p-4 bg-white shadow-md">
+            <h1 class="text-xl font-bold">File PDF: {{ filename }}</h1>
+        </div>
+
+        <div id="pdf-container">
+            <!-- Canvas untuk PDF -->
+            <canvas id="pdf-render" class="bg-white rounded"></canvas>
+
+            <!-- QR Code yang bisa di-drag -->
+            <div id="qrWrapper" class="drag-item resize hidden">
+                <img id="qrImage" src="" alt="QR Code">
+            </div>
+        </div>
+
+        <!-- Navigasi PDF -->
+        <div class="p-4 bg-white shadow-md flex justify-between items-center">
+            <button id="prev" class="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded">
+                ← Halaman Sebelumnya
+            </button>
+            <div>
+                Halaman: <span id="page-num">1</span> / <span id="page-count"></span>
+            </div>
+            <button id="next" class="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded">
+                Halaman Berikutnya →
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const pdfjsLib = window['pdfjs-dist/build/pdf'];
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+        let pdfDoc = null,
+            pageNum = 1,
+            pageIsRendering = false,
+            pageNumPending = null,
+            scale = 1.5;
+
+        const pdfCanvas = document.getElementById('pdf-render'),
+            pdfCtx = pdfCanvas.getContext('2d'),
+            qrWrapper = document.getElementById('qrWrapper'),
+            qrImage = document.getElementById('qrImage');
+
+        // Render halaman PDF
+        const renderPage = num => {
+            pageIsRendering = true;
+            pdfDoc.getPage(num).then(page => {
+                const viewport = page.getViewport({ scale });
+                pdfCanvas.height = viewport.height;
+                pdfCanvas.width = viewport.width;
+
+                const renderCtx = {
+                    canvasContext: pdfCtx,
+                    viewport
+                };
+
+                page.render(renderCtx).promise.then(() => {
+                    pageIsRendering = false;
+                    if (pageNumPending !== null) {
+                        renderPage(pageNumPending);
+                        pageNumPending = null;
+                    }
+                });
+                document.getElementById('page-num').textContent = num;
+            });
+        };
+
+        // Fungsi navigasi PDF
+        const queueRenderPage = num => {
+            if (pageIsRendering) {
+                pageNumPending = num;
+            } else {
+                renderPage(num);
+            }
+        };
+
+        const onPrevPage = () => {
+            if (pageNum <= 1) return;
+            pageNum--;
+            queueRenderPage(pageNum);
+        };
+
+        const onNextPage = () => {
+            if (pageNum >= pdfDoc.numPages) return;
+            pageNum++;
+            queueRenderPage(pageNum);
+        };
+
+        document.getElementById('prev').addEventListener('click', onPrevPage);
+        document.getElementById('next').addEventListener('click', onNextPage);
+
+        // Load PDF
+        const url = "{{ file_url }}";
+        pdfjsLib.getDocument(url).promise.then(pdfDoc_ => {
+            pdfDoc = pdfDoc_;
+            document.getElementById('page-count').textContent = pdfDoc.numPages;
+            renderPage(pageNum);
+        });
+
+        // Gambar di canvas
+        let isDrawing = false;
+        pdfCanvas.addEventListener('mousedown', (e) => {
+            isDrawing = true;
+        });
+
+        pdfCanvas.addEventListener('mousemove', (e) => {
+            if (!isDrawing) return;
+
+            const rect = pdfCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            pdfCtx.fillStyle = "rgba(0, 0, 0, 0.5)";
+            pdfCtx.fillRect(x, y, 10, 10); // Example brush size
+        });
+
+        pdfCanvas.addEventListener('mouseup', () => {
+            isDrawing = false;
+        });
+
+        // Kirim posisi dan gambar ke server
+        document.getElementById('send-to-server').addEventListener('click', async () => {
+            const imageData = pdfCanvas.toDataURL();
+
+            try {
+                const response = await fetch('/send-drawing', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        imageData,
+                        page: pageNum
+                    }),
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    qrImage.src = result.qrCodeUrl;
+                    qrWrapper.style.left = '50px';
+                    qrWrapper.style.top = '50px';
+                    qrWrapper.classList.remove('hidden');
+                    alert('QR Code berhasil ditambahkan ke dokumen.');
+                } else {
+                    alert('Gagal mengirim gambar ke server.');
+                }
+            } catch (error) {
+                console.error(error);
+                alert('Terjadi kesalahan saat mengirim gambar.');
+            }
+        });
+    </script>
+</body>
+
+</html>
