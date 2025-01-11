@@ -6,6 +6,7 @@ from itsdangerous import URLSafeTimedSerializer
 from flask_mail import Message
 from app.extensions import mail
 from itsdangerous import BadSignature, SignatureExpired
+import logging
 
 
 # Utility functions for token generation and verification
@@ -50,8 +51,18 @@ def register():
         password = request.form['password']
 
         try:
+            # Tambahkan validasi untuk memastikan format username dan password
+            if not User._is_username_format_valid(username):
+                flash("Username tidak valid. Harus minimal 3 karakter dan mengandung angka.", "danger")
+                return redirect(url_for('auth.register'))
+
+            if not User._is_password_format_valid(password):
+                flash("Password tidak valid. Harus minimal 8 karakter dan mengandung angka.", "danger")
+                return redirect(url_for('auth.register'))
+
+            # Buat pengguna baru
             User.create_user(username=username, email=email, password=password)
-            flash('Registration successful! Please login.', 'success')
+            flash('Registrasi berhasil! Silakan login.', 'success')
             return redirect(url_for('auth.login'))
         except ValueError as e:
             flash(str(e), 'danger')
@@ -59,14 +70,18 @@ def register():
     return render_template('auth/register.html')
 
 
+
 # Login route
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
+    # Jika pengguna sudah login, arahkan ke dashboard
     if current_user.is_authenticated:
+        if request.is_json:
+            return jsonify({"message": "Already logged in", "user_id": current_user.id}), 200
         return redirect(url_for('dashboard.home'))
 
     if request.method == 'POST':
-        # Handling JSON request (Postman) or form request (HTML)
+        # Mendukung request berbasis JSON (Postman) atau form HTML
         if request.is_json:
             data = request.get_json()
             email = data.get('email')
@@ -75,23 +90,38 @@ def login():
             email = request.form.get('email')
             password = request.form.get('password')
 
-        # Verify user credentials
+        # Validasi email dan password
         user = User.query.filter_by(email=email).first()
         if user and user.check_password(password):
             login_user(user)
-            if request.is_json:
-                return jsonify({"message": "Login successful!"}), 200
 
+            # Log user ID dan cookie session
+            logging.info(f"User {user.id} berhasil login. Session: {request.cookies.get('session')}")
+            
+            # Respon jika request JSON (API)
+            if request.is_json:
+                response = jsonify({
+                    "message": "Login successful",
+                    "user": {"id": user.id, "email": user.email, "username": user.username}
+                })
+                response.set_cookie('session', request.cookies.get('session'), httponly=True)
+                return response, 200
+
+            # Respon jika form HTML
             flash('Login successful!', 'success')
             next_page = request.args.get('next')
             return redirect(next_page) if next_page else redirect(url_for('dashboard.home'))
 
-        # If login fails
+        # Jika kredensial salah
         if request.is_json:
-            return jsonify({"error": "Invalid email or password."}), 401
+            return jsonify({"error": "Invalid email or password"}), 401
         flash('Invalid email or password.', 'danger')
 
+    # Render halaman login untuk request GET
     return render_template('auth/login.html')
+
+
+
 
 
 # Forgot password route
@@ -109,13 +139,15 @@ def forgot_password():
             )
             reset_url = url_for('auth.reset_password', token=token, _external=True)
             send_reset_email(email, reset_url, current_app.config['MAIL_DEFAULT_SENDER'])
-            flash('An email has been sent with instructions to reset your password.', 'info')
+            flash('Email untuk reset password telah dikirim.', 'info')
         else:
-            flash('Email address not found.', 'danger')
+            flash('Alamat email tidak ditemukan.', 'danger')
+            current_app.logger.warning(f"Permintaan reset password untuk email yang tidak terdaftar: {email}")
 
         return redirect(url_for('auth.login'))
 
     return render_template('auth/forgot_password.html')
+
 
 
 # Reset password route
@@ -152,6 +184,32 @@ def reset_password(token):
             flash('User not found.', 'danger')
 
     return render_template('auth/reset_password.html', token=token)
+
+
+
+@auth_bp.route('/delete-all-users', methods=['POST'])
+@login_required
+def delete_all_users():
+    """
+    Hapus semua pengguna dari database dan atur ulang AUTO_INCREMENT.
+    Endpoint ini hanya boleh digunakan oleh administrator.
+    """
+    if not current_user.is_authenticated or not current_user.is_admin:  # Tambahkan logika admin
+        return jsonify({"error": "Unauthorized access"}), 403
+
+    try:
+        # Hapus semua pengguna
+        User.query.delete()
+        db.session.commit()
+
+        # Reset AUTO_INCREMENT
+        User.reset_auto_increment()
+
+        return jsonify({"message": "Semua pengguna berhasil dihapus dan AUTO_INCREMENT direset."}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Terjadi kesalahan: {str(e)}"}), 500
+
 
 
 # Logout route

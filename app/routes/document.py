@@ -82,22 +82,7 @@ def upload_document():
                 file_hash=file_hash
             )
 
-            # Create token for the document
-            token = sign_token(file_hash)
-
-            # Save signature to database
-            signature = Signature.create_signature(
-                document_id=new_document.id,
-                user_id=current_user.id,
-                token=token
-            )
-
-            # Verify signature and update status
-            is_valid = verify_token(token, file_hash)
-            signature.status = 'valid' if is_valid else 'invalid'
-            db.session.commit()
-
-            flash('Document uploaded and signed successfully!', 'success')
+            flash(f"Document uploaded successfully with ID: {new_document.doc_hash}!", 'success')
             return redirect(url_for('document.list_documents'))
 
         except Exception as e:
@@ -105,6 +90,9 @@ def upload_document():
             flash(f'An error occurred: {str(e)}', 'error')
 
     return render_template('upload_document.html')
+
+
+
 
 
 
@@ -116,67 +104,42 @@ def list_documents():
     return render_template('list_documents.html', documents=user_documents)
 
 
-@document_bp.route('/view_document/<int:doc_id>', methods=['GET'])
+@document_bp.route('/view_document/<string:doc_hash>', methods=['GET'])
 @login_required
-def view_document(doc_id):
-    """Route to view a specific document in a template."""
-    # Ambil dokumen dari database
-    document = Document.query.get_or_404(doc_id)
+def view_document(doc_hash):
+    """Route untuk melihat dokumen berdasarkan hash dokumen."""
+    # Cari dokumen berdasarkan hash
+    document = Document.query.filter_by(file_hash=doc_hash).first_or_404()
 
     # Periksa apakah pengguna memiliki akses ke dokumen
     if document.user_id != current_user.id:
-        flash("You don't have permission to access this document.", 'error')
+        flash("Anda tidak memiliki izin untuk mengakses dokumen ini.", 'error')
         return redirect(url_for('document.list_documents'))
 
     # Periksa apakah file ada di sistem
     filepath = document.filepath
     if not os.path.exists(filepath):
-        flash("The requested document is not found on the server.", 'error')
+        flash("Dokumen yang diminta tidak ditemukan di server.", 'error')
         return redirect(url_for('document.list_documents'))
 
     # Kirim data dokumen ke template
     return render_template('view_document.html', document=document)
 
 
-@document_bp.route('/verify/<int:doc_id>', methods=['POST'])
+
+
+@document_bp.route('/document/delete/<string:doc_hash>', methods=['POST'])
 @login_required
-def verify_document_signature(doc_id):
-    """Verify the document signature."""
-    try:
-        document = Document.query.get_or_404(doc_id)
-        signature = Signature.query.filter_by(document_id=doc_id).first()
-
-        if not signature:
-            return jsonify({"error": "Signature not found for this document."}), 404
-
-        # Verify the signature using the token and file hash
-        is_valid = verify_token(signature.token, document.file_hash)
-        signature.status = 'valid' if is_valid else 'invalid'
-        db.session.commit()
-
-        if is_valid:
-            return jsonify({"message": "Signature is valid."}), 200
-        else:
-            return jsonify({"error": "Signature is invalid."}), 400
-    except Exception as e:
-        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
-
-
-
-
-
-@document_bp.route('/document/delete/<int:doc_id>', methods=['POST'])
-@login_required
-def delete_document(doc_id):
+def delete_document(doc_hash):
     """Route to delete a specific document."""
-    document = Document.query.get_or_404(doc_id)
+    document = Document.query.filter_by(doc_hash=doc_hash).first_or_404()
     if document.user_id != current_user.id:
         flash("You don't have permission to delete this document.", 'error')
         return redirect(url_for('document.list_documents'))
 
     try:
         # Hapus tanda tangan terkait
-        signatures = Signature.query.filter_by(document_id=doc_id).all()
+        signatures = Signature.query.filter_by(document_id=document.id).all()
         for signature in signatures:
             db.session.delete(signature)
 
@@ -189,14 +152,11 @@ def delete_document(doc_id):
         if os.path.exists(filepath):
             os.remove(filepath)
 
-        # Reset AUTO_INCREMENT jika tabel kosong
-        if Document.query.count() == 0:
-            db.session.execute(text("ALTER TABLE document AUTO_INCREMENT = 1"))
-            db.session.commit()
-
         flash("Document deleted successfully.", 'success')
     except Exception as e:
         db.session.rollback()
         flash(f"Failed to delete document: {str(e)}", 'error')
 
     return redirect(url_for('document.list_documents'))
+
+
