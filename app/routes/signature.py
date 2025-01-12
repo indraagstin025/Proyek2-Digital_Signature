@@ -262,40 +262,44 @@ def get_token(document_hash):
 @login_required
 def generate_signed_doc(document_hash):
     try:
-        # Ambil dokumen dan tanda tangan berdasarkan hash
+        # Validasi dokumen
         document = Document.query.filter_by(doc_hash=document_hash).first_or_404()
-        signature = Signature.query.filter_by(document_hash=document_hash).first()
-
-        if not signature:
-            return jsonify({"error": "Tanda tangan tidak ditemukan"}), 404
+        signature = Signature.query.filter_by(document_hash=document_hash).first_or_404()
 
         if document.user_id != current_user.id:
             return jsonify({"error": "Anda tidak memiliki izin untuk dokumen ini."}), 403
 
-        # Path dokumen asli dan tanda tangan
+        # Ambil path dokumen asli dan QR Code
         pdf_path = document.filepath
         qr_code_path = signature.qr_code_path
         output_path = os.path.join(SIGNATURE_FOLDER, f"{document_hash}_signed.pdf")
 
+        # Validasi data posisi dan ukuran QR Code
+        if None in (signature.qr_position_x, signature.qr_position_y, signature.qr_width, signature.qr_height):
+            return jsonify({"error": "Posisi dan ukuran QR Code belum diatur"}), 400
+
         # Tambahkan QR Code ke PDF
-        if not os.path.exists(pdf_path):
-            return jsonify({"error": f"File dokumen asli tidak ditemukan: {pdf_path}"}), 404
+        add_qr_to_pdf(
+            pdf_path,
+            qr_code_path,
+            output_path,
+            x=signature.qr_position_x,
+            y=signature.qr_position_y,
+            width=signature.qr_width,
+            height=signature.qr_height
+        )
 
-        if not os.path.exists(qr_code_path):
-            return jsonify({"error": f"QR Code tidak ditemukan: {qr_code_path}"}), 404
-
-        add_signature_to_pdf(pdf_path, qr_code_path, output_path)
-
-        # Pastikan file output benar-benar dibuat
+        # Pastikan file hasil dibuat
         if not os.path.exists(output_path):
-            return jsonify({"error": f"File bertanda tangan tidak ditemukan setelah diproses: {output_path}"}), 500
+            return jsonify({"error": f"File bertanda tangan tidak ditemukan: {output_path}"}), 500
 
-        # Kirim file bertanda tangan ke user
         return send_file(output_path, as_attachment=True)
 
     except Exception as e:
-        logging.error(f"Terjadi kesalahan saat membuat dokumen bertanda tangan: {e}")
+        logging.error(f"Kesalahan saat membuat dokumen bertanda tangan: {e}")
         return jsonify({"error": f"Terjadi kesalahan: {str(e)}"}), 500
+
+
 
 
 @signature_bp.route('/delete-signatures', methods=['POST'])
@@ -361,6 +365,38 @@ def view_signature(document_hash):
     except Exception as e:
         logging.error(f"Terjadi kesalahan saat melihat tanda tangan: {e}")
         return jsonify({"error": f"Terjadi kesalahan: {str(e)}"}), 500
+    
+
+@signature_bp.route('/save-qr-settings', methods=['POST'])
+@login_required
+def save_qr_settings():
+    try:
+        data = request.json
+        logging.info(f"Data yang diterima: {data}")  # Tambahkan log ini
+        document_hash = data.get("document_hash")
+        x = data.get("x")
+        y = data.get("y")
+        width = data.get("width")
+        height = data.get("height")
+
+        if not all([document_hash, x, y, width, height]):
+            return jsonify({"error": "Data tidak lengkap"}), 400
+
+        signature = Signature.query.filter_by(document_hash=document_hash, user_id=current_user.id).first_or_404()
+        signature.qr_position_x = float(x)
+        signature.qr_position_y = float(y)
+        signature.qr_width = float(width)
+        signature.qr_height = float(height)
+        db.session.commit()
+
+        return jsonify({"message": "Posisi dan ukuran QR Code berhasil disimpan"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Terjadi kesalahan: {str(e)}"}), 500
+
+
+
+
 
 
 

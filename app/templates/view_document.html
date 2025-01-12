@@ -6,6 +6,8 @@
     <title>Pratinjau Dokumen</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/interact.js/1.10.11/interact.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+
     <style>
         #documentContainer {
             width: 100%;
@@ -68,6 +70,9 @@
             </div>
 
             <div class="mt-6">
+                <button id="saveQrSettings" class="px-4 py-2 bg-teal-500 text-white rounded-lg shadow-md hover:bg-teal-600">
+                    Simpan Posisi QR Code
+                </button>
                 <button id="downloadSignedDoc" class="px-4 py-2 bg-green-500 text-white rounded-lg shadow-md hover:bg-green-600">
                     Unduh Dokumen dengan QR
                 </button>
@@ -83,9 +88,10 @@
         const downloadSignedDocBtn = document.getElementById('downloadSignedDoc');
         const qrContainer = document.getElementById('qrContainer');
         const qrImage = document.getElementById('qrImage');
+        const saveQrSettingsBtn = document.getElementById('saveQrSettings');
         const docHash = "{{ document.doc_hash }}"; // Dari backend
 
-        // Gambar QR Code drag & resize
+        // Drag & Resize QR Code
         interact('#qrContainer')
             .draggable({
                 listeners: {
@@ -96,6 +102,8 @@
                         const x = (matrix.m41 || 0) + dx;
                         const y = (matrix.m42 || 0) + dy;
                         qrContainer.style.transform = `translate(${x}px, ${y}px)`;
+                        qrContainer.setAttribute('data-x', x);
+                        qrContainer.setAttribute('data-y', y);
                     }
                 }
             })
@@ -155,6 +163,41 @@
                 alert('Terjadi kesalahan saat menyimpan tanda tangan.');
             }
         });
+
+        saveQrSettingsBtn.addEventListener('click', async () => {
+    const rect = qrContainer.getBoundingClientRect();
+    const docRect = document.getElementById('documentContainer').getBoundingClientRect();
+
+    const x = rect.left - docRect.left;
+    const y = rect.top - docRect.top;
+    const width = qrContainer.offsetWidth;
+    const height = qrContainer.offsetHeight;
+
+    try {
+        const response = await fetch('/signature/save-qr-settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                document_hash: docHash,
+                x: Math.round(x),
+                y: Math.round(y),
+                width: Math.round(width),
+                height: Math.round(height)
+            })
+        });
+
+        if (response.ok) {
+            alert('Posisi QR Code berhasil disimpan.');
+        } else {
+            const result = await response.json();
+            alert(result.error || 'Gagal menyimpan posisi QR Code.');
+        }
+    } catch (error) {
+        console.error('Kesalahan saat menyimpan posisi QR Code:', error);
+        alert('Terjadi kesalahan saat menyimpan posisi QR Code.');
+    }
+});
+
 
         // Unduh dokumen dengan QR Code
         downloadSignedDocBtn.addEventListener('click', () => {

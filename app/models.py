@@ -171,6 +171,12 @@ class Signature(db.Model):
     signer_email = db.Column(db.String(150), nullable=False)
     document_name = db.Column(db.String(255), nullable=False)
 
+    # Tambahkan kolom untuk posisi dan ukuran QR Code
+    qr_position_x = db.Column(db.Float, nullable=True)
+    qr_position_y = db.Column(db.Float, nullable=True)
+    qr_width = db.Column(db.Float, nullable=True)
+    qr_height = db.Column(db.Float, nullable=True)
+
     @classmethod
     def create_signature(cls, document_hash, user_id, token, signer_email, document_name):
         """
@@ -191,7 +197,6 @@ class Signature(db.Model):
         except IntegrityError as e:
             db.session.rollback()
             raise ValueError(f"Kesalahan saat menyimpan tanda tangan: {e}")
-
 
     @classmethod
     def reset_auto_increment(cls):
