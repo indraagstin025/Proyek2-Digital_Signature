@@ -1,522 +1,284 @@
 <!DOCTYPE html>
 <html lang="id">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PDF Viewer with Signature</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/interact.js/1.10.11/interact.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        #pdf-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100%;
-            overflow: auto;
+        body {
+            font-family: Arial, sans-serif;
             background-color: #f4f4f9;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        #pdf-container {
             position: relative;
-        }
-
-        canvas {
-            max-width: 100%;
-            max-height: 100%;
-            border: 1px solid #ddd;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-        }
-
-        #signatureCanvas {
-            border: 2px dashed #4a5568;
-            background-color: rgba(255, 255, 255, 0.8);
-            z-index: 1000;
-            display: block;
-        }
-
-        .drag-item {
-            position: absolute;
-            border: 2px dashed #4a5568;
+            width: 80%; /* Menyesuaikan ukuran tampilan PDF */
+            max-width: 900px; /* Batas maksimal ukuran PDF */
+            margin-bottom: 20px;
             background-color: white;
-            z-index: 100;
-            cursor: move;
-        }
-
-        .resize {
-            resize: both;
+            border: 1px solid #ddd;
             overflow: hidden;
         }
 
-        #qrWrapper img {
-            width: 150px;
-            height: 150px;
+        canvas {
+            display: block;
+            width: 100%;
+            height: auto;
         }
 
-        #signature-modal {
+        #qrWrapper {
+            position: absolute;
+            z-index: 100;
             display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
+            border: 2px dashed #4a5568;
+            background-color: rgba(255, 255, 255, 0.8);
+            cursor: move;
+        }
+
+        #qrWrapper img {
             width: 100%;
             height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
         }
 
-        #signature-modal.active {
+        .navigation {
             display: flex;
+            justify-content: space-around;
+            width: 80%;
+            max-width: 900px;
+            margin: 20px 0;
         }
 
-        .modal-content {
-            background-color: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-            width: 500px;
-        }
-
-        .tab-btn {
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
             cursor: pointer;
-            padding: 10px;
-            text-align: center;
         }
 
-        .tab-btn.active {
-            font-weight: bold;
-            color: #2563eb;
-            border-bottom: 2px solid #2563eb;
-        }
-
-        .tab-content {
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
+        button:hover {
+            background-color: #0056b3;
         }
     </style>
 </head>
-
-<body class="bg-gray-50 h-screen flex">
-
-    <!-- Sidebar Menu -->
-    <div class="w-64 bg-gray-900 text-white flex flex-col">
-        <div class="p-4 text-2xl font-bold text-center border-b border-gray-700">Tanda Tangan</div>
-        <ul class="flex-1 space-y-2 p-4">
-            <li id="open-signature-modal" class="flex items-center space-x-2 cursor-pointer hover:bg-gray-700 p-2 rounded">
-                <span>✍️</span>
-                <span>Buat Tanda Tangan</span>
-            </li>
-            <li id="view-qr" class="flex items-center space-x-2 cursor-pointer hover:bg-gray-700 p-2 rounded">
-                <span>🔍</span>
-                <span>Lihat QR Code</span>
-            </li>
-            <li id="save-qr-settings" class="flex items-center space-x-2 cursor-pointer hover:bg-gray-700 p-2 rounded">
-                <span>💾</span>
-                <span>Simpan Posisi QR</span>
-            </li>
-            <li id="download-doc" class="flex items-center space-x-2 cursor-pointer hover:bg-gray-700 p-2 rounded">
-                <span>⬇️</span>
-                <span>Unduh dengan QR</span>
-            </li>
-        </ul>
-    </div>
-
-    <!-- PDF Viewer Section -->
-    <div class="flex-1 flex flex-col">
-        <div class="p-4 bg-white shadow-md">
-            <h1 class="text-xl font-bold">File PDF: {{ document.filename }}</h1>
-        </div>
-
-        <div id="pdf-container">
-            <!-- Canvas untuk PDF -->
-            <canvas id="pdf-render" class="bg-white rounded"></canvas>
-
-            <!-- QR Code yang bisa di-drag -->
-            <div id="qrWrapper" class="drag-item resize hidden">
-                <img id="qrImage" src="" alt="QR Code">
-            </div>
-        </div>
-
-        <!-- Navigasi PDF -->
-        <div class="p-4 bg-white shadow-md flex justify-between items-center">
-            <button id="prev" class="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded">
-                ← Halaman Sebelumnya
-            </button>
-            <div>
-                Halaman: <span id="page-num">1</span> / <span id="page-count"></span>
-            </div>
-            <button id="next" class="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded">
-                Halaman Berikutnya →
-            </button>
+<body>
+    <div id="pdf-container">
+        <canvas id="pdf-render"></canvas>
+        <div id="qrWrapper" class="resize">
+            <img id="qrImage" src="" alt="QR Code">
         </div>
     </div>
 
-    <!-- Modal untuk Tanda Tangan -->
-    <div id="signature-modal" class="fixed inset-0 flex items-center justify-center">
-        <div class="modal-content">
-            <h3 class="text-lg font-semibold mb-4">Buat Tanda Tangan</h3>
+    <!-- Navigasi -->
+    <div class="navigation">
+        <button id="prev">← Halaman Sebelumnya</button>
+        <button id="next">Halaman Berikutnya →</button>
+        <button id="save-qr-settings">Simpan Posisi QR</button>
+    </div>
 
-            <div class="flex justify-around border-b mb-4">
-                <div id="tab-draw" class="tab-btn active">Gambar</div>
-                <div id="tab-type" class="tab-btn">Ketik</div>
-                <div id="tab-upload" class="tab-btn">Unggah</div>
-            </div>
-
-            <div id="content-draw" class="tab-content active">
-                <canvas id="signatureCanvas" width="400" height="150" class="border rounded"></canvas>
-                <button id="clearCanvas" class="mt-2 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">Hapus</button>
-            </div>
-
-            <div id="content-type" class="tab-content">
-                <input type="text" id="typedSignature" placeholder="Ketik tanda tangan Anda" class="w-full border rounded p-2">
-            </div>
-
-            <div id="content-upload" class="tab-content">
-                <input type="file" id="fileUpload" class="w-full border rounded p-2">
-                <img id="uploadedPreview" src="" alt="Pratinjau" class="mt-2 hidden">
-            </div>
-
-            <div class="mt-4 flex justify-between">
-                <button id="saveSignature" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Simpan</button>
-                <button id="close-modal" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">Tutup</button>
-            </div>
-        </div>
+    <!-- Status Halaman -->
+    <div class="status">
+        Halaman: <span id="page-num">1</span> / <span id="page-count"></span>
     </div>
 
     <script>
-const pdfjsLib = window['pdfjs-dist/build/pdf'];
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+        const pdfjsLib = window["pdfjs-dist/build/pdf"];
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
 
-let pdfDoc = null,
-    pageNum = 1,
-    pageIsRendering = false,
-    pageNumPending = null,
-    scale = 2.5;
+        let pdfDoc = null,
+            pageNum = 1,
+            scale = 1.5; // Skala untuk menyesuaikan tampilan PDF
+        const pdfCanvas = document.getElementById("pdf-render");
+        const pdfCtx = pdfCanvas.getContext("2d");
+        const qrWrapper = document.getElementById("qrWrapper");
 
-const pdfCanvas = document.getElementById('pdf-render'),
-      pdfCtx = pdfCanvas.getContext('2d');
-      
+        const renderPage = (num) => {
+            pdfDoc.getPage(num).then((page) => {
+                const viewport = page.getViewport({ scale });
 
-const renderPage = num => {
-    pageIsRendering = true;
-    pdfDoc.getPage(num).then(page => {
-        const viewport = page.getViewport({ scale });
-        pdfCanvas.height = viewport.height;
-        pdfCanvas.width = viewport.width;
+                // Menyesuaikan ukuran canvas dengan viewport
+                pdfCanvas.width = viewport.width;
+                pdfCanvas.height = viewport.height;
 
-        const renderCtx = {
-            canvasContext: pdfCtx,
-            viewport
+                const renderCtx = {
+                    canvasContext: pdfCtx,
+                    viewport: viewport,
+                };
+
+                page.render(renderCtx).promise.then(() => {
+                    renderSavedQRPosition(viewport.width, viewport.height);
+                });
+
+                document.getElementById("page-num").textContent = num;
+            });
         };
 
-        console.log(`Halaman ${num} dirender dengan dimensi: ${viewport.width}x${viewport.height}`);
+        const queueRenderPage = (num) => {
+            if (num <= 0 || num > pdfDoc.numPages) return;
+            renderPage(num);
+        };
 
-        page.render(renderCtx).promise.then(() => {
-            pageIsRendering = false;
-            if (pageNumPending !== null) {
-                renderPage(pageNumPending);
-                pageNumPending = null;
-            }
+        // Navigasi Halaman
+        document.getElementById("prev").addEventListener("click", () => {
+            if (pageNum <= 1) return;
+            pageNum--;
+            renderPage(pageNum);
         });
-        document.getElementById('page-num').textContent = num;
-    });
-};
 
+        document.getElementById("next").addEventListener("click", () => {
+            if (pageNum >= pdfDoc.numPages) return;
+            pageNum++;
+            renderPage(pageNum);
+        });
 
-const queueRenderPage = num => {
-    if (pageIsRendering) {
-        pageNumPending = num;
-    } else {
-        renderPage(num);
-    }
-};
+        // Load PDF
+        const url = "{{ url_for('static', filename='uploads/' ~ document.filename) }}";
+        pdfjsLib.getDocument(url).promise.then((pdfDoc_) => {
+            pdfDoc = pdfDoc_;
+            document.getElementById("page-count").textContent = pdfDoc.numPages;
+            renderPage(pageNum);
+        });
 
-const onPrevPage = () => {
-    if (pageNum <= 1) return;
-    pageNum--;
-    queueRenderPage(pageNum);
-};
+        // Drag-and-drop QR Code
+        interact("#qrWrapper")
+            .draggable({
+                modifiers: [
+                    interact.modifiers.restrictRect({
+                        restriction: "#pdf-container",
+                        endOnly: true,
+                    }),
+                ],
+                listeners: {
+                    move(event) {
+                        const target = event.target;
+                        const x = (parseFloat(target.getAttribute("data-x")) || 0) + event.dx;
+                        const y = (parseFloat(target.getAttribute("data-y")) || 0) + event.dy;
 
-const onNextPage = () => {
-    if (pageNum >= pdfDoc.numPages) return;
-    pageNum++;
-    queueRenderPage(pageNum);
-};
+                        target.style.transform = `translate(${x}px, ${y}px)`;
+                        target.setAttribute("data-x", x);
+                        target.setAttribute("data-y", y);
+                    },
+                },
+            })
+            .resizable({
+                edges: { left: true, right: true, bottom: true, top: true },
+                modifiers: [
+                    interact.modifiers.restrictEdges({
+                        outer: "#pdf-container",
+                    }),
+                    interact.modifiers.restrictSize({
+                        min: { width: 50, height: 50 },
+                        max: { width: 300, height: 300 },
+                    }),
+                ],
+                listeners: {
+                    move(event) {
+                        const target = event.target;
+                        let x = parseFloat(target.getAttribute("data-x")) || 0;
+                        let y = parseFloat(target.getAttribute("data-y")) || 0;
 
-document.getElementById('prev').addEventListener('click', onPrevPage);
-document.getElementById('next').addEventListener('click', onNextPage);
+                        target.style.width = `${event.rect.width}px`;
+                        target.style.height = `${event.rect.height}px`;
 
-const url = "{{ url_for('static', filename='uploads/' ~ document.filename) }}";
-pdfjsLib.getDocument(url).promise.then(pdfDoc_ => {
-    pdfDoc = pdfDoc_;
-    document.getElementById('page-count').textContent = pdfDoc.numPages;
-    renderPage(pageNum);
-});
+                        x += event.deltaRect.left;
+                        y += event.deltaRect.top;
 
-// Modal handling
-const signatureModal = document.getElementById('signature-modal');
-const openModalBtn = document.getElementById('open-signature-modal');
-const closeModalBtn = document.getElementById('close-modal');
-
-openModalBtn.addEventListener('click', () => {
-    signatureModal.classList.add('active');
-});
-
-closeModalBtn.addEventListener('click', () => {
-    signatureModal.classList.remove('active');
-});
-
-const tabs = document.querySelectorAll('.tab-btn');
-const contents = document.querySelectorAll('.tab-content');
-
-tabs.forEach((tab, index) => {
-    tab.addEventListener('click', () => {
-        tabs.forEach(t => t.classList.remove('active'));
-        contents.forEach(c => c.classList.remove('active'));
-
-        tab.classList.add('active');
-        contents[index].classList.add('active');
-    });
-});
-
-const signatureCanvas = document.getElementById('signatureCanvas');
-const ctx = signatureCanvas.getContext('2d');
-let drawing = false;
-
-signatureCanvas.addEventListener('mousedown', () => drawing = true);
-signatureCanvas.addEventListener('mouseup', () => { drawing = false; ctx.beginPath(); });
-signatureCanvas.addEventListener('mousemove', (e) => {
-    if (!drawing) return;
-    ctx.lineWidth = 2;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#000';
-    ctx.lineTo(e.offsetX, e.offsetY);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(e.offsetX, e.offsetY);
-});
-
-document.getElementById('clearCanvas').addEventListener('click', () => ctx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height));
-
-document.getElementById('saveSignature').addEventListener('click', async () => {
-    const activeTab = document.querySelector('.tab-content.active');
-    const documentHash = "{{ document.doc_hash }}"; // Pastikan hash dokumen ini diisi dengan benar
-
-    if (activeTab.id === 'content-draw') {
-        const signatureData = signatureCanvas.toDataURL('image/png');
-        try {
-            // Simpan tanda tangan ke backend
-            const response = await fetch('/signature/add-signature', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ document_hash: documentHash, signature: signatureData })
+                        target.style.transform = `translate(${x}px, ${y}px)`;
+                        target.setAttribute("data-x", x);
+                        target.setAttribute("data-y", y);
+                    },
+                },
             });
 
-            const result = await response.json();
-            if (response.ok) {
-                alert('Tanda tangan berhasil ditambahkan!');
+        // Simpan Posisi QR Code
+        document.getElementById("save-qr-settings").addEventListener("click", async () => {
+            const x = parseFloat(qrWrapper.getAttribute("data-x")) || 0;
+            const y = parseFloat(qrWrapper.getAttribute("data-y")) || 0;
+            const width = qrWrapper.offsetWidth;
+            const height = qrWrapper.offsetHeight;
+            const documentHash = "{{ document.doc_hash }}";
+            const targetPage = pageNum - 1;
 
-                // Setelah tanda tangan berhasil, ambil QR Code
-                const qrResponse = await fetch(`/signature/view-qr/${documentHash}`);
-                if (qrResponse.ok) {
-                    const qrBlob = await qrResponse.blob();
-                    const qrUrl = URL.createObjectURL(qrBlob);
-                    document.getElementById('qrImage').src = qrUrl; // Tampilkan QR Code pada elemen gambar
-                    document.getElementById('qrWrapper').classList.remove('hidden');
-                } else {
-                    const qrError = await qrResponse.json();
-                    console.error('Gagal mengambil QR Code:', qrError.error);
-                }
-            } else {
-                alert(result.error || 'Gagal menyimpan tanda tangan.');
-            }
-        } catch (error) {
-            console.error('Kesalahan saat menyimpan tanda tangan:', error);
-            alert('Terjadi kesalahan saat menyimpan tanda tangan.');
-        }
-    } else if (activeTab.id === 'content-type') {
-        const typedSignature = document.getElementById('typedSignature').value;
-        alert(`Tanda tangan disimpan: ${typedSignature}`);
-    } else if (activeTab.id === 'content-upload') {
-        alert('Tanda tangan dari unggahan disimpan!');
-    }
-});
+            const backendWidth = 595.28;
+            const backendHeight = 841.89;
 
-// Drag-and-drop and resize QR code
-const qrWrapper = document.getElementById('qrWrapper');
+            const scaleX = backendWidth / pdfCanvas.width;
+            const scaleY = backendHeight / pdfCanvas.height;
 
-interact('#qrWrapper')
-    .draggable({
-        modifiers: [
-            interact.modifiers.restrictRect({
-                restriction: '#pdf-container',
-                endOnly: true
-            })
-        ],
-        listeners: {
-            move(event) {
-                const target = event.target;
-                const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
-                const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
+            const backendX = x * scaleX;
+            const backendY = backendHeight - (y + height) * scaleY;
+            const backendWidthQR = width * scaleX;
+            const backendHeightQR = height * scaleY;
 
-                target.style.transform = `translate(${x}px, ${y}px)`;
-
-                target.setAttribute('data-x', x);
-                target.setAttribute('data-y', y);
-            }
-        }
-    })
-    .resizable({
-        edges: { left: true, right: true, bottom: true, top: true },
-        modifiers: [
-            interact.modifiers.restrictEdges({
-                outer: '#pdf-container'
-            }),
-            interact.modifiers.restrictSize({
-                min: { width: 50, height: 50 },
-                max: { width: 300, height: 300 }
-            })
-        ],
-        listeners: {
-            move(event) {
-                const target = event.target;
-                let x = parseFloat(target.getAttribute('data-x')) || 0;
-                let y = parseFloat(target.getAttribute('data-y')) || 0;
-
-                target.style.width = `${event.rect.width}px`;
-                target.style.height = `${event.rect.height}px`;
-
-                x += event.deltaRect.left;
-                y += event.deltaRect.top;
-
-                target.style.transform = `translate(${x}px, ${y}px)`;
-
-                target.setAttribute('data-x', x);
-                target.setAttribute('data-y', y);
-            }
-        }
-    });
-
-
-    document.getElementById('save-qr-settings').addEventListener('click', async () => {
-    let x = parseFloat(qrWrapper.getAttribute('data-x')) || 0;
-    let y = parseFloat(qrWrapper.getAttribute('data-y')) || 0;
-    const width = qrWrapper.offsetWidth;
-    const height = qrWrapper.offsetHeight;
-    const documentHash = "{{ document.doc_hash }}";
-    const targetPage = pageNum - 1; // Menggunakan halaman saat ini
-
-    // Validasi dan debug posisi
-    console.log("Posisi QR sebelum transformasi:", { x, y, width, height });
-
-    // Transformasi koordinat Y ke PDF (dari kiri atas ke kiri bawah)
-    const pdfHeight = pdfCanvas.height;
-    y = pdfHeight - y - height;
-
-    console.log("Posisi QR setelah transformasi:", { x, y, width, height, targetPage });
-
-    try {
-        const response = await fetch('/signature/save-qr-settings', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ document_hash: documentHash, x, y, width, height, target_page: targetPage })
-        });
-
-        const result = await response.json();
-        if (response.ok) {
-            console.log("Respons dari backend:", result);
-            alert('Posisi QR Code berhasil disimpan!');
-        } else {
-            alert(result.error || 'Gagal menyimpan posisi QR Code.');
-        }
-    } catch (error) {
-        console.error('Kesalahan saat menyimpan posisi QR Code:', error);
-        alert('Terjadi kesalahan saat menyimpan posisi QR Code.');
-    }
-});
-
-
-
-const renderSavedQRPosition = async () => {
-    const documentHash = "{{ document.doc_hash }}";
-
-    try {
-        const response = await fetch(`/signature/get-token/${documentHash}`);
-        const result = await response.json();
-
-        if (response.ok) {
-            const { qr_position_x, qr_position_y, qr_width, qr_height, target_page } = result;
-
-            if (qr_position_x != null && qr_position_y != null && qr_width && qr_height) {
-                // Transformasi koordinat Y ke sistem frontend
-                const pdfHeight = pdfCanvas.height;
-                const yTransformed = pdfHeight - qr_position_y - qr_height;
-
-                qrWrapper.style.transform = `translate(${qr_position_x}px, ${yTransformed}px)`;
-                qrWrapper.style.width = `${qr_width}px`;
-                qrWrapper.style.height = `${qr_height}px`;
-
-                qrWrapper.setAttribute('data-x', qr_position_x);
-                qrWrapper.setAttribute('data-y', yTransformed);
-
-                console.log("QR Code dirender ulang:", {
-                    x: qr_position_x,
-                    y: yTransformed,
-                    width: qr_width,
-                    height: qr_height,
-                    target_page
+            try {
+                const response = await fetch("/signature/save-qr-settings", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        document_hash: documentHash,
+                        x: backendX,
+                        y: backendY,
+                        width: backendWidthQR,
+                        height: backendHeightQR,
+                        target_page: targetPage,
+                    }),
                 });
+
+                const result = await response.json();
+                if (response.ok) {
+                    alert("Posisi QR Code berhasil disimpan!");
+                } else {
+                    alert(result.error || "Gagal menyimpan posisi QR Code.");
+                }
+            } catch (error) {
+                console.error("Kesalahan saat menyimpan posisi QR Code:", error);
             }
-        } else {
-            console.error("Gagal mengambil posisi QR Code:", result.error);
-        }
-    } catch (error) {
-        console.error("Kesalahan saat mengambil posisi QR Code:", error);
-    }
-};
-
-
-
-renderSavedQRPosition();
-
-const downloadSignedDoc = async () => {
-    const documentHash = "{{ document.doc_hash }}";
-    try {
-        const response = await fetch(`/signature/generate-signed-doc/${documentHash}`, {
-            method: 'GET'
         });
 
-        if (response.ok) {
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.style.display = 'none';
-            a.href = url;
-            a.download = `${documentHash}_signed.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            alert('Dokumen berhasil diunduh!');
-        } else {
-            const result = await response.json();
-            alert(result.error || 'Gagal mengunduh dokumen bertanda tangan.');
-        }
-    } catch (error) {
-        console.error('Kesalahan saat mengunduh dokumen bertanda tangan:', error);
-        alert('Terjadi kesalahan saat mengunduh dokumen bertanda tangan.');
-    }
-};
+        // Render Posisi QR Code
+        const renderSavedQRPosition = async (canvasWidth, canvasHeight) => {
+            try {
+                const response = await fetch(`/signature/get-token/{{ document.doc_hash }}`);
+                const result = await response.json();
 
-document.getElementById('download-doc').addEventListener('click', downloadSignedDoc);
+                if (response.ok) {
+                    const { qr_position_x, qr_position_y, qr_width, qr_height } = result;
 
+                    const backendWidth = 595.28;
+                    const backendHeight = 841.89;
 
+                    const scaleX = canvasWidth / backendWidth;
+                    const scaleY = canvasHeight / backendHeight;
+
+                    const xTransformed = qr_position_x * scaleX;
+                    const yTransformed = canvasHeight - (qr_position_y + qr_height) * scaleY;
+                    const widthTransformed = qr_width * scaleX;
+                    const heightTransformed = qr_height * scaleY;
+
+                    qrWrapper.style.transform = `translate(${xTransformed}px, ${yTransformed}px)`;
+                    qrWrapper.style.width = `${widthTransformed}px`;
+                    qrWrapper.style.height = `${heightTransformed}px`;
+
+                    qrWrapper.setAttribute("data-x", xTransformed);
+                    qrWrapper.setAttribute("data-y", yTransformed);
+                    qrWrapper.classList.remove("hidden");
+                } else {
+                    console.error("Gagal mengambil posisi QR Code:", result.error);
+                }
+            } catch (error) {
+                console.error("Kesalahan saat mengambil posisi QR Code:", error);
+            }
+        };
     </script>
 </body>
-
 </html>
-
-
-

@@ -92,10 +92,6 @@ def upload_document():
     return render_template('upload_document.html')
 
 
-
-
-
-
 @document_bp.route('/documents', methods=['GET'])
 @login_required
 def list_documents():
@@ -104,12 +100,13 @@ def list_documents():
     return render_template('list_documents.html', documents=user_documents)
 
 
+
 @document_bp.route('/view_document/<string:doc_hash>', methods=['GET'])
 @login_required
 def view_document(doc_hash):
     """Route untuk melihat dokumen berdasarkan hash dokumen."""
-    # Cari dokumen berdasarkan hash
-    document = Document.query.filter_by(file_hash=doc_hash).first_or_404()
+    # Cari dokumen berdasarkan doc_hash
+    document = Document.query.filter_by(doc_hash=doc_hash).first_or_404()
 
     # Periksa apakah pengguna memiliki akses ke dokumen
     if document.user_id != current_user.id:
@@ -127,19 +124,21 @@ def view_document(doc_hash):
 
 
 
-
 @document_bp.route('/document/delete/<string:doc_hash>', methods=['POST'])
 @login_required
 def delete_document(doc_hash):
     """Route to delete a specific document."""
+    # Cari dokumen berdasarkan doc_hash
     document = Document.query.filter_by(doc_hash=doc_hash).first_or_404()
+
+    # Verifikasi kepemilikan dokumen
     if document.user_id != current_user.id:
         flash("You don't have permission to delete this document.", 'error')
         return redirect(url_for('document.list_documents'))
 
     try:
-        # Hapus tanda tangan terkait
-        signatures = Signature.query.filter_by(document_id=document.id).all()
+        # Hapus tanda tangan terkait menggunakan document_hash
+        signatures = Signature.query.filter_by(document_hash=document.doc_hash).all()
         for signature in signatures:
             db.session.delete(signature)
 
@@ -158,5 +157,6 @@ def delete_document(doc_hash):
         flash(f"Failed to delete document: {str(e)}", 'error')
 
     return redirect(url_for('document.list_documents'))
+
 
 
