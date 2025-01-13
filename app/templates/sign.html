@@ -400,30 +400,36 @@ interact('#qrWrapper')
         }
     });
 
-
     document.getElementById('save-qr-settings').addEventListener('click', async () => {
-    let x = parseFloat(qrWrapper.getAttribute('data-x')) || 0;
-    let y = parseFloat(qrWrapper.getAttribute('data-y')) || 0;
+    const qrWrapper = document.getElementById('qrWrapper');
+    const x = parseFloat(qrWrapper.getAttribute('data-x')) || 0;
+    const y = parseFloat(qrWrapper.getAttribute('data-y')) || 0;
     const width = qrWrapper.offsetWidth;
     const height = qrWrapper.offsetHeight;
     const documentHash = "{{ document.doc_hash }}";
-    const targetPage = pageNum - 1; // Halaman saat ini
+    const targetPage = pageNum - 1; // Halaman aktif
 
-    // Dimensi asli halaman PDF (harus sinkron dengan backend)
-    const backendWidth = 595.28; // Default untuk A4 dalam poin
+    // Dimensi asli dokumen PDF di backend (A4 dalam poin)
+    const backendWidth = 595.28;
     const backendHeight = 841.89;
 
-    // Rasio skala frontend ke backend
+    // Rasio skala antara frontend dan backend
     const scaleX = backendWidth / pdfCanvas.width;
     const scaleY = backendHeight / pdfCanvas.height;
 
-    // Transformasi koordinat dan ukuran
+    // Transformasi koordinat dan dimensi untuk backend
     const backendX = x * scaleX;
     const backendY = backendHeight - (y + height) * scaleY; // Transformasi Y untuk backend
     const backendWidthQR = width * scaleX;
     const backendHeightQR = height * scaleY;
 
-    console.log("Data yang dikirim ke backend:", { backendX, backendY, backendWidthQR, backendHeightQR, targetPage });
+    console.log("Data dikirim ke backend:", {
+        backendX,
+        backendY,
+        backendWidthQR,
+        backendHeightQR,
+        targetPage
+    });
 
     try {
         const response = await fetch('/signature/save-qr-settings', {
@@ -450,8 +456,7 @@ interact('#qrWrapper')
     }
 });
 
-
-const renderSavedQRPosition = async () => {
+const renderSavedQRPosition = async (canvasWidth, canvasHeight) => {
     const documentHash = "{{ document.doc_hash }}";
 
     try {
@@ -459,46 +464,44 @@ const renderSavedQRPosition = async () => {
         const result = await response.json();
 
         if (response.ok) {
-            const { qr_position_x, qr_position_y, qr_width, qr_height, target_page } = result;
+            const { qr_position_x, qr_position_y, qr_width, qr_height } = result;
 
-            if (qr_position_x != null && qr_position_y != null && qr_width && qr_height) {
-                // Dimensi asli halaman PDF (default A4)
-                const backendWidth = 595.28; // Dalam poin
-                const backendHeight = 841.89;
+            const backendWidth = 595.28;
+            const backendHeight = 841.89;
 
-                // Rasio skala frontend ke backend
-                const scaleX = pdfCanvas.width / backendWidth;
-                const scaleY = pdfCanvas.height / backendHeight;
+            // Rasio skala antara backend dan frontend
+            const scaleX = canvasWidth / backendWidth;
+            const scaleY = canvasHeight / backendHeight;
 
-                // Transformasi posisi dan ukuran
-                const xTransformed = qr_position_x * scaleX;
-                const yTransformed = pdfCanvas.height - (qr_position_y * scaleY + qr_height * scaleY);
-                const widthTransformed = qr_width * scaleX;
-                const heightTransformed = qr_height * scaleY;
+            // Transformasi posisi dan dimensi ke skala frontend
+            const xTransformed = qr_position_x * scaleX;
+            const yTransformed = canvasHeight - (qr_position_y + qr_height) * scaleY;
+            const widthTransformed = qr_width * scaleX;
+            const heightTransformed = qr_height * scaleY;
 
-                // Set posisi dan ukuran QR Code di frontend
-                qrWrapper.style.transform = `translate(${xTransformed}px, ${yTransformed}px)`;
-                qrWrapper.style.width = `${widthTransformed}px`;
-                qrWrapper.style.height = `${heightTransformed}px`;
+            // Atur posisi dan dimensi QR Code di frontend
+            qrWrapper.style.transform = `translate(${xTransformed}px, ${yTransformed}px)`;
+            qrWrapper.style.width = `${widthTransformed}px`;
+            qrWrapper.style.height = `${heightTransformed}px`;
 
-                qrWrapper.setAttribute('data-x', xTransformed);
-                qrWrapper.setAttribute('data-y', yTransformed);
+            qrWrapper.setAttribute('data-x', xTransformed);
+            qrWrapper.setAttribute('data-y', yTransformed);
+            qrWrapper.classList.remove('hidden');
 
-                console.log("QR Code dirender ulang:", {
-                    x: xTransformed,
-                    y: yTransformed,
-                    width: widthTransformed,
-                    height: heightTransformed,
-                    target_page
-                });
-            }
+            console.log('QR Code dirender ulang:', {
+                x: xTransformed,
+                y: yTransformed,
+                width: widthTransformed,
+                height: heightTransformed
+            });
         } else {
-            console.error("Gagal mengambil posisi QR Code:", result.error);
+            console.error('Gagal mengambil posisi QR Code:', result.error);
         }
     } catch (error) {
-        console.error("Kesalahan saat mengambil posisi QR Code:", error);
+        console.error('Kesalahan saat mengambil posisi QR Code:', error);
     }
 };
+
 
 
 
