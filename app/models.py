@@ -176,6 +176,7 @@ class Signature(db.Model):
     qr_position_y = db.Column(db.Float, nullable=True)
     qr_width = db.Column(db.Float, nullable=True)
     qr_height = db.Column(db.Float, nullable=True)
+    target_page = db.Column(db.Integer, nullable=True)
 
     @classmethod
     def create_signature(cls, document_hash, user_id, token, signer_email, document_name):

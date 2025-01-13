@@ -403,18 +403,15 @@ interact('#qrWrapper')
     const width = qrWrapper.offsetWidth;
     const height = qrWrapper.offsetHeight;
     const documentHash = "{{ document.doc_hash }}";
+    const targetPage = pageNum - 1; // Menggunakan halaman saat ini sebagai target
 
-    // Validasi agar x dan y tidak negatif
-    x = Math.max(x, 0);
-    y = Math.max(y, 0);
-
-    console.log("Data yang dikirim ke backend setelah validasi:", { documentHash, x, y, width, height });
+    console.log("Data yang dikirim ke backend:", { documentHash, x, y, width, height, targetPage });
 
     try {
         const response = await fetch('/signature/save-qr-settings', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ document_hash: documentHash, x, y, width, height })
+            body: JSON.stringify({ document_hash: documentHash, x, y, width, height, target_page: targetPage })
         });
 
         const result = await response.json();
@@ -429,6 +426,7 @@ interact('#qrWrapper')
         alert('Terjadi kesalahan saat menyimpan posisi QR Code.');
     }
 });
+
 
 
 const renderSavedQRPosition = async () => {

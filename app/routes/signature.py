@@ -277,11 +277,11 @@ def generate_signed_doc(document_hash):
         qr_code_path = signature.qr_code_path
         output_path = os.path.join(SIGNATURE_FOLDER, f"{document_hash}_signed.pdf")
 
-        # Ambil posisi dan ukuran QR Code
-        if None in (signature.qr_position_x, signature.qr_position_y, signature.qr_width, signature.qr_height):
-            return jsonify({"error": "Posisi dan ukuran QR Code belum diatur"}), 400
+        # Ambil posisi, ukuran, dan halaman target QR Code
+        if None in (signature.qr_position_x, signature.qr_position_y, signature.qr_width, signature.qr_height, signature.target_page):
+            return jsonify({"error": "Posisi, ukuran, atau halaman QR Code belum diatur"}), 400
 
-        # Tambahkan QR Code hanya pada halaman pertama (target_page=0)
+        # Tambahkan QR Code ke halaman target
         success = add_qr_to_pdf(
             pdf_path,
             qr_code_path,
@@ -290,7 +290,7 @@ def generate_signed_doc(document_hash):
             y=signature.qr_position_y,
             width=signature.qr_width,
             height=signature.qr_height,
-            target_page=0  # Hanya halaman pertama
+            target_page=signature.target_page  # Gunakan halaman target
         )
 
         if not success:
@@ -304,6 +304,7 @@ def generate_signed_doc(document_hash):
     except Exception as e:
         logging.error(f"Kesalahan saat membuat dokumen bertanda tangan: {e}")
         return jsonify({"error": f"Terjadi kesalahan: {str(e)}"}), 500
+
 
 
 
@@ -378,13 +379,17 @@ def save_qr_settings():
     try:
         data = request.json
         logging.info(f"Data yang diterima dari frontend: {data}")
+        
         document_hash = data.get("document_hash")
         x = data.get("x")
         y = data.get("y")
         width = data.get("width")
         height = data.get("height")
+        target_page = data.get("target_page", 0)  # Default halaman pertama
 
-        if not all([document_hash, x, y, width, height]):
+        logging.info(f"document_hash: {document_hash}, x: {x}, y: {y}, width: {width}, height: {height}, target_page: {target_page}")
+
+        if not all([document_hash, x is not None, y is not None, width, height]):
             logging.warning("Data yang diterima tidak lengkap.")
             return jsonify({"error": "Data tidak lengkap"}), 400
 
@@ -393,20 +398,11 @@ def save_qr_settings():
         signature.qr_position_y = float(y)
         signature.qr_width = float(width)
         signature.qr_height = float(height)
+        signature.target_page = int(target_page)  # Simpan halaman target ke database
         db.session.commit()
 
-        logging.info("Posisi QR Code berhasil disimpan ke database.")
         return jsonify({"message": "Posisi dan ukuran QR Code berhasil disimpan"}), 200
     except Exception as e:
-        logging.error(f"Kesalahan: {e}")
+        logging.error(f"Kesalahan saat menyimpan posisi QR Code: {e}")
         db.session.rollback()
         return jsonify({"error": f"Terjadi kesalahan: {str(e)}"}), 500
-
-
-
-
-
-
-
-
-
