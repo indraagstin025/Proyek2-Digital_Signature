@@ -398,13 +398,17 @@ interact('#qrWrapper')
 
 
     document.getElementById('save-qr-settings').addEventListener('click', async () => {
-    const x = parseFloat(qrWrapper.getAttribute('data-x')) || 0;
-    const y = parseFloat(qrWrapper.getAttribute('data-y')) || 0;
+    let x = parseFloat(qrWrapper.getAttribute('data-x')) || 0;
+    let y = parseFloat(qrWrapper.getAttribute('data-y')) || 0;
     const width = qrWrapper.offsetWidth;
     const height = qrWrapper.offsetHeight;
     const documentHash = "{{ document.doc_hash }}";
 
-    console.log("Data yang dikirim ke backend:", { documentHash, x, y, width, height });
+    // Validasi agar x dan y tidak negatif
+    x = Math.max(x, 0);
+    y = Math.max(y, 0);
+
+    console.log("Data yang dikirim ke backend setelah validasi:", { documentHash, x, y, width, height });
 
     try {
         const response = await fetch('/signature/save-qr-settings', {
@@ -426,6 +430,7 @@ interact('#qrWrapper')
     }
 });
 
+
 const renderSavedQRPosition = async () => {
     const documentHash = "{{ document.doc_hash }}";
 
@@ -443,6 +448,13 @@ const renderSavedQRPosition = async () => {
 
                 qrWrapper.setAttribute('data-x', qr_position_x);
                 qrWrapper.setAttribute('data-y', qr_position_y);
+
+                console.log("QR Code dirender dengan posisi:", {
+                    x: qr_position_x,
+                    y: qr_position_y,
+                    width: qr_width,
+                    height: qr_height
+                });
             }
         } else {
             console.error("Gagal mengambil posisi QR Code:", result.error);
@@ -452,7 +464,38 @@ const renderSavedQRPosition = async () => {
     }
 };
 
+
 renderSavedQRPosition();
+
+const downloadSignedDoc = async () => {
+    const documentHash = "{{ document.doc_hash }}";
+    try {
+        const response = await fetch(`/signature/generate-signed-doc/${documentHash}`, {
+            method: 'GET'
+        });
+
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = `${documentHash}_signed.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            alert('Dokumen berhasil diunduh!');
+        } else {
+            const result = await response.json();
+            alert(result.error || 'Gagal mengunduh dokumen bertanda tangan.');
+        }
+    } catch (error) {
+        console.error('Kesalahan saat mengunduh dokumen bertanda tangan:', error);
+        alert('Terjadi kesalahan saat mengunduh dokumen bertanda tangan.');
+    }
+};
+
+document.getElementById('download-doc').addEventListener('click', downloadSignedDoc);
 
 
     </script>
