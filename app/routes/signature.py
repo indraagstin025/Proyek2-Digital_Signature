@@ -245,17 +245,22 @@ def get_token(document_hash):
 
         logging.info(f"Token ditemukan untuk dokumen {document_hash}: {signature.token}")
 
-        # Kembalikan respons
+        # Kembalikan respons dengan data posisi QR code
         return jsonify({
             "token": signature.token,
             "document_name": signature.document_name,
             "signed_by": signature.signer_email,
-            "timestamp": str(signature.timestamp)
+            "timestamp": str(signature.timestamp),
+            "qr_position_x": signature.qr_position_x,
+            "qr_position_y": signature.qr_position_y,
+            "qr_width": signature.qr_width,
+            "qr_height": signature.qr_height
         }), 200
 
     except Exception as e:
         logging.error(f"Kesalahan saat mengambil token untuk dokumen {document_hash}: {e}")
         return jsonify({"error": f"Terjadi kesalahan: {str(e)}"}), 500
+
 
 
 @signature_bp.route('/generate-signed-doc/<string:document_hash>', methods=['GET'])
@@ -372,7 +377,7 @@ def view_signature(document_hash):
 def save_qr_settings():
     try:
         data = request.json
-        logging.info(f"Data yang diterima: {data}")  # Tambahkan log ini
+        logging.info(f"Data yang diterima dari frontend: {data}")
         document_hash = data.get("document_hash")
         x = data.get("x")
         y = data.get("y")
@@ -380,6 +385,7 @@ def save_qr_settings():
         height = data.get("height")
 
         if not all([document_hash, x, y, width, height]):
+            logging.warning("Data yang diterima tidak lengkap.")
             return jsonify({"error": "Data tidak lengkap"}), 400
 
         signature = Signature.query.filter_by(document_hash=document_hash, user_id=current_user.id).first_or_404()
@@ -389,10 +395,13 @@ def save_qr_settings():
         signature.qr_height = float(height)
         db.session.commit()
 
+        logging.info("Posisi QR Code berhasil disimpan ke database.")
         return jsonify({"message": "Posisi dan ukuran QR Code berhasil disimpan"}), 200
     except Exception as e:
+        logging.error(f"Kesalahan: {e}")
         db.session.rollback()
         return jsonify({"error": f"Terjadi kesalahan: {str(e)}"}), 500
+
 
 
 

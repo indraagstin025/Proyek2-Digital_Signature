@@ -187,116 +187,117 @@
     </div>
 
     <script>
-        const pdfjsLib = window['pdfjs-dist/build/pdf'];
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+const pdfjsLib = window['pdfjs-dist/build/pdf'];
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
-        let pdfDoc = null,
-            pageNum = 1,
-            pageIsRendering = false,
-            pageNumPending = null,
-            scale = 2.5;
+let pdfDoc = null,
+    pageNum = 1,
+    pageIsRendering = false,
+    pageNumPending = null,
+    scale = 2.5;
 
-        const pdfCanvas = document.getElementById('pdf-render'),
-              pdfCtx = pdfCanvas.getContext('2d');
+const pdfCanvas = document.getElementById('pdf-render'),
+      pdfCtx = pdfCanvas.getContext('2d');
 
-        const renderPage = num => {
-            pageIsRendering = true;
-            pdfDoc.getPage(num).then(page => {
-                const viewport = page.getViewport({ scale });
-                pdfCanvas.height = viewport.height;
-                pdfCanvas.width = viewport.width;
+const renderPage = num => {
+    pageIsRendering = true;
+    pdfDoc.getPage(num).then(page => {
+        const viewport = page.getViewport({ scale });
+        pdfCanvas.height = viewport.height;
+        pdfCanvas.width = viewport.width;
 
-                const renderCtx = {
-                    canvasContext: pdfCtx,
-                    viewport
-                };
-
-                page.render(renderCtx).promise.then(() => {
-                    pageIsRendering = false;
-                    if (pageNumPending !== null) {
-                        renderPage(pageNumPending);
-                        pageNumPending = null;
-                    }
-                });
-                document.getElementById('page-num').textContent = num;
-            });
+        const renderCtx = {
+            canvasContext: pdfCtx,
+            viewport
         };
 
-        const queueRenderPage = num => {
-            if (pageIsRendering) {
-                pageNumPending = num;
-            } else {
-                renderPage(num);
+        page.render(renderCtx).promise.then(() => {
+            pageIsRendering = false;
+            if (pageNumPending !== null) {
+                renderPage(pageNumPending);
+                pageNumPending = null;
             }
-        };
-
-        const onPrevPage = () => {
-            if (pageNum <= 1) return;
-            pageNum--;
-            queueRenderPage(pageNum);
-        };
-
-        const onNextPage = () => {
-            if (pageNum >= pdfDoc.numPages) return;
-            pageNum++;
-            queueRenderPage(pageNum);
-        };
-
-        document.getElementById('prev').addEventListener('click', onPrevPage);
-        document.getElementById('next').addEventListener('click', onNextPage);
-
-        const url = "{{ url_for('static', filename='uploads/' ~ document.filename) }}";
-        pdfjsLib.getDocument(url).promise.then(pdfDoc_ => {
-            pdfDoc = pdfDoc_;
-            document.getElementById('page-count').textContent = pdfDoc.numPages;
-            renderPage(pageNum);
         });
+        document.getElementById('page-num').textContent = num;
+    });
+};
 
-        const signatureModal = document.getElementById('signature-modal');
-        const openModalBtn = document.getElementById('open-signature-modal');
-        const closeModalBtn = document.getElementById('close-modal');
+const queueRenderPage = num => {
+    if (pageIsRendering) {
+        pageNumPending = num;
+    } else {
+        renderPage(num);
+    }
+};
 
-        openModalBtn.addEventListener('click', () => {
-            signatureModal.classList.add('active');
-        });
+const onPrevPage = () => {
+    if (pageNum <= 1) return;
+    pageNum--;
+    queueRenderPage(pageNum);
+};
 
-        closeModalBtn.addEventListener('click', () => {
-            signatureModal.classList.remove('active');
-        });
+const onNextPage = () => {
+    if (pageNum >= pdfDoc.numPages) return;
+    pageNum++;
+    queueRenderPage(pageNum);
+};
 
-        const tabs = document.querySelectorAll('.tab-btn');
-        const contents = document.querySelectorAll('.tab-content');
+document.getElementById('prev').addEventListener('click', onPrevPage);
+document.getElementById('next').addEventListener('click', onNextPage);
 
-        tabs.forEach((tab, index) => {
-            tab.addEventListener('click', () => {
-                tabs.forEach(t => t.classList.remove('active'));
-                contents.forEach(c => c.classList.remove('active'));
+const url = "{{ url_for('static', filename='uploads/' ~ document.filename) }}";
+pdfjsLib.getDocument(url).promise.then(pdfDoc_ => {
+    pdfDoc = pdfDoc_;
+    document.getElementById('page-count').textContent = pdfDoc.numPages;
+    renderPage(pageNum);
+});
 
-                tab.classList.add('active');
-                contents[index].classList.add('active');
-            });
-        });
+// Modal handling
+const signatureModal = document.getElementById('signature-modal');
+const openModalBtn = document.getElementById('open-signature-modal');
+const closeModalBtn = document.getElementById('close-modal');
 
-        const signatureCanvas = document.getElementById('signatureCanvas');
-        const ctx = signatureCanvas.getContext('2d');
-        let drawing = false;
+openModalBtn.addEventListener('click', () => {
+    signatureModal.classList.add('active');
+});
 
-        signatureCanvas.addEventListener('mousedown', () => drawing = true);
-        signatureCanvas.addEventListener('mouseup', () => { drawing = false; ctx.beginPath(); });
-        signatureCanvas.addEventListener('mousemove', (e) => {
-            if (!drawing) return;
-            ctx.lineWidth = 2;
-            ctx.lineCap = 'round';
-            ctx.strokeStyle = '#000';
-            ctx.lineTo(e.offsetX, e.offsetY);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(e.offsetX, e.offsetY);
-        });
+closeModalBtn.addEventListener('click', () => {
+    signatureModal.classList.remove('active');
+});
 
-        document.getElementById('clearCanvas').addEventListener('click', () => ctx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height));
+const tabs = document.querySelectorAll('.tab-btn');
+const contents = document.querySelectorAll('.tab-content');
 
-        document.getElementById('saveSignature').addEventListener('click', async () => {
+tabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        contents.forEach(c => c.classList.remove('active'));
+
+        tab.classList.add('active');
+        contents[index].classList.add('active');
+    });
+});
+
+const signatureCanvas = document.getElementById('signatureCanvas');
+const ctx = signatureCanvas.getContext('2d');
+let drawing = false;
+
+signatureCanvas.addEventListener('mousedown', () => drawing = true);
+signatureCanvas.addEventListener('mouseup', () => { drawing = false; ctx.beginPath(); });
+signatureCanvas.addEventListener('mousemove', (e) => {
+    if (!drawing) return;
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#000';
+    ctx.lineTo(e.offsetX, e.offsetY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(e.offsetX, e.offsetY);
+});
+
+document.getElementById('clearCanvas').addEventListener('click', () => ctx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height));
+
+document.getElementById('saveSignature').addEventListener('click', async () => {
     const activeTab = document.querySelector('.tab-content.active');
     const documentHash = "{{ document.doc_hash }}"; // Pastikan hash dokumen ini diisi dengan benar
 
@@ -339,6 +340,120 @@
         alert('Tanda tangan dari unggahan disimpan!');
     }
 });
+
+// Drag-and-drop and resize QR code
+const qrWrapper = document.getElementById('qrWrapper');
+
+interact('#qrWrapper')
+    .draggable({
+        modifiers: [
+            interact.modifiers.restrictRect({
+                restriction: '#pdf-container',
+                endOnly: true
+            })
+        ],
+        listeners: {
+            move(event) {
+                const target = event.target;
+                const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
+                const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
+
+                target.style.transform = `translate(${x}px, ${y}px)`;
+
+                target.setAttribute('data-x', x);
+                target.setAttribute('data-y', y);
+            }
+        }
+    })
+    .resizable({
+        edges: { left: true, right: true, bottom: true, top: true },
+        modifiers: [
+            interact.modifiers.restrictEdges({
+                outer: '#pdf-container'
+            }),
+            interact.modifiers.restrictSize({
+                min: { width: 50, height: 50 },
+                max: { width: 300, height: 300 }
+            })
+        ],
+        listeners: {
+            move(event) {
+                const target = event.target;
+                let x = parseFloat(target.getAttribute('data-x')) || 0;
+                let y = parseFloat(target.getAttribute('data-y')) || 0;
+
+                target.style.width = `${event.rect.width}px`;
+                target.style.height = `${event.rect.height}px`;
+
+                x += event.deltaRect.left;
+                y += event.deltaRect.top;
+
+                target.style.transform = `translate(${x}px, ${y}px)`;
+
+                target.setAttribute('data-x', x);
+                target.setAttribute('data-y', y);
+            }
+        }
+    });
+
+
+    document.getElementById('save-qr-settings').addEventListener('click', async () => {
+    const x = parseFloat(qrWrapper.getAttribute('data-x')) || 0;
+    const y = parseFloat(qrWrapper.getAttribute('data-y')) || 0;
+    const width = qrWrapper.offsetWidth;
+    const height = qrWrapper.offsetHeight;
+    const documentHash = "{{ document.doc_hash }}";
+
+    console.log("Data yang dikirim ke backend:", { documentHash, x, y, width, height });
+
+    try {
+        const response = await fetch('/signature/save-qr-settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ document_hash: documentHash, x, y, width, height })
+        });
+
+        const result = await response.json();
+        if (response.ok) {
+            console.log("Respons dari backend:", result);
+            alert('Posisi QR Code berhasil disimpan!');
+        } else {
+            alert(result.error || 'Gagal menyimpan posisi QR Code.');
+        }
+    } catch (error) {
+        console.error('Kesalahan saat menyimpan posisi QR Code:', error);
+        alert('Terjadi kesalahan saat menyimpan posisi QR Code.');
+    }
+});
+
+const renderSavedQRPosition = async () => {
+    const documentHash = "{{ document.doc_hash }}";
+
+    try {
+        const response = await fetch(`/signature/get-token/${documentHash}`);
+        const result = await response.json();
+
+        if (response.ok) {
+            const { qr_position_x, qr_position_y, qr_width, qr_height } = result;
+
+            if (qr_position_x != null && qr_position_y != null && qr_width && qr_height) {
+                qrWrapper.style.transform = `translate(${qr_position_x}px, ${qr_position_y}px)`;
+                qrWrapper.style.width = `${qr_width}px`;
+                qrWrapper.style.height = `${qr_height}px`;
+
+                qrWrapper.setAttribute('data-x', qr_position_x);
+                qrWrapper.setAttribute('data-y', qr_position_y);
+            }
+        } else {
+            console.error("Gagal mengambil posisi QR Code:", result.error);
+        }
+    } catch (error) {
+        console.error("Kesalahan saat mengambil posisi QR Code:", error);
+    }
+};
+
+renderSavedQRPosition();
+
 
     </script>
 </body>
