@@ -404,35 +404,47 @@ def save_qr_settings():
     try:
         data = request.json
         logging.info(f"Data yang diterima dari frontend: {data}")
-        
+
         document_hash = data.get("document_hash")
         x = data.get("x")
         y = data.get("y")
         width = data.get("width")
         height = data.get("height")
-        target_page = data.get("target_page", 0)  # Default halaman pertama
+        target_page = data.get("target_page", 0)  # Halaman default 0
 
         logging.info(f"document_hash: {document_hash}, x: {x}, y: {y}, width: {width}, height: {height}, target_page: {target_page}")
 
-        # Perbaiki indentasi pada bagian ini
+        # Validasi kelengkapan data
         if not all([document_hash, x is not None, y is not None, width, height, target_page is not None]):
             logging.warning("Data yang diterima tidak lengkap atau salah format.")
             return jsonify({"error": "Data tidak lengkap atau salah format"}), 400
-                
-        if x < 0 or y < 0 or width <= 0 or height <= 0:
-            return jsonify({"error": "Data posisi atau ukuran QR Code tidak valid."}), 400
 
-        # Proses menyimpan data ke database
+        # Validasi ukuran dan posisi
+        if x < 0 or y < 0:
+            return jsonify({"error": "Koordinat QR Code tidak valid. x dan y harus >= 0."}), 400
+        if width <= 0 or height <= 0:
+            return jsonify({"error": "Ukuran QR Code tidak valid. Lebar dan tinggi harus lebih besar dari 0."}), 400
+
+        MIN_SIZE, MAX_SIZE = 50, 1000  # Ukuran QR Code minimal dan maksimal
+        if width < MIN_SIZE or height < MIN_SIZE or width > MAX_SIZE or height > MAX_SIZE:
+            return jsonify({
+                "error": f"Ukuran QR Code harus antara {MIN_SIZE}px dan {MAX_SIZE}px."
+            }), 400
+
+        # Simpan posisi QR ke database
         signature = Signature.query.filter_by(document_hash=document_hash, user_id=current_user.id).first_or_404()
         signature.qr_position_x = float(x)
         signature.qr_position_y = float(y)
         signature.qr_width = float(width)
         signature.qr_height = float(height)
-        signature.target_page = int(target_page)  # Simpan halaman target ke database
+        signature.target_page = int(target_page)
         db.session.commit()
 
         return jsonify({"message": "Posisi dan ukuran QR Code berhasil disimpan"}), 200
+
     except Exception as e:
         logging.error(f"Kesalahan saat menyimpan posisi QR Code: {e}")
         db.session.rollback()
         return jsonify({"error": f"Terjadi kesalahan: {str(e)}"}), 500
+
+

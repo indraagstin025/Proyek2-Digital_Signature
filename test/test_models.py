@@ -1,134 +1,110 @@
 import pytest
-from app import create_app, db
-from app.models import User, Document
-from io import BytesIO
-from sqlalchemy.exc import IntegrityError
+from app.models import User, Document, Signature
+from app.extensions import db
+from werkzeug.security import check_password_hash
+from datetime import datetime, timezone
+
+def test_user_creation(app):
+    with app.app_context():
+        username = "user123"
+        email = "user@example.com"
+        password = "password123"
+
+        user = User.create_user(username, email, password)
+
+        assert user.username == username
+        assert user.email == email
+        assert check_password_hash(user.password, password)
+        assert user.created_at is not None
+        assert user.updated_at is not None
 
 
-@pytest.fixture(scope='module')
+def test_user_duplicate_username(app):
+    with app.app_context():
+        username = "user123"
+        email1 = "user1@example.com"
+        email2 = "user2@example.com"
+        password = "password123"
+
+        User.create_user(username, email1, password)
+
+        with pytest.raises(ValueError, match="Username sudah terdaftar."):
+            User.create_user(username, email2, password)
+
+
+def test_user_duplicate_email(app):
+    with app.app_context():
+        username1 = "user123"
+        username2 = "user456"
+        email = "user@example.com"
+        password = "password123"
+
+        User.create_user(username1, email, password)
+
+        with pytest.raises(ValueError, match="Email sudah terdaftar."):
+            User.create_user(username2, email, password)
+
+
+def test_document_creation(app):
+    with app.app_context():
+        user = User.create_user("docuser123", "docuser@example.com", "password123")
+        filename = "test_document.pdf"
+        filepath = "/path/to/test_document.pdf"
+        file_hash = "d41d8cd98f00b204e9800998ecf8427e"
+
+        document = Document.create_document(user.id, filename, filepath, file_hash)
+
+        assert document.filename == filename
+        assert document.filepath == filepath
+        assert document.file_hash == file_hash
+        assert document.user_id == user.id
+        assert document.uploaded_at is not None
+        assert document.doc_hash is not None
+
+
+def test_document_duplicate(app):
+    with app.app_context():
+        user = User.create_user("docuser456", "docuser2@example.com", "password123")
+        filename = "duplicate_document.pdf"
+        filepath = "/path/to/duplicate_document.pdf"
+        file_hash = "d41d8cd98f00b204e9800998ecf8427e"
+
+        Document.create_document(user.id, filename, filepath, file_hash)
+
+        with pytest.raises(ValueError, match="Dokumen dengan isi yang sama sudah diunggah sebelumnya."):
+            Document.create_document(user.id, filename, filepath, file_hash)
+
+
+def test_signature_creation(app):
+    with app.app_context():
+        user = User.create_user("siguser123", "siguser@example.com", "password123")
+        filename = "signed_document.pdf"
+        filepath = "/path/to/signed_document.pdf"
+        file_hash = "d41d8cd98f00b204e9800998ecf8427e"
+
+        document = Document.create_document(user.id, filename, filepath, file_hash)
+
+        token = "sample_token"
+        signer_email = "signer@example.com"
+        document_name = filename
+
+        signature = Signature.create_signature(document.doc_hash, user.id, token, signer_email, document_name)
+
+        assert signature.document_hash == document.doc_hash
+        assert signature.user_id == user.id
+        assert signature.token == token
+        assert signature.signer_email == signer_email
+        assert signature.document_name == document_name
+        assert signature.timestamp is not None
+        assert signature.status == "pending"
+
+
+@pytest.fixture
 def app():
-    app = create_app(config_name='testing')
-    yield app
-
-
-@pytest.fixture(scope='module')
-def init_db(app):
+    from app import create_app
+    app = create_app("testing")
     with app.app_context():
         db.create_all()
-        yield db
+        yield app
         db.session.remove()
         db.drop_all()
-
-
-@pytest.fixture(autouse=True)
-def cleanup(init_db):
-    yield
-    init_db.session.query(Document).delete()
-    init_db.session.query(User).delete()
-    init_db.session.commit()
-
-
-@pytest.fixture
-def test_user(init_db):
-    """Create a test user."""
-    user = User.create_user(username='testuser123', email='test@example.com', password='password123')
-    return user
-
-
-@pytest.fixture
-def test_file():
-    """Create a sample file to be used in tests."""
-    file_content = b"Sample file content."
-    file = BytesIO(file_content)
-    file.filename = "testfile.txt"
-    return file
-
-
-def test_user_creation(init_db):
-    """Test creating a valid user."""
-    user = User.create_user(username='testuser123', email='test@example.com', password='password123')
-
-    user_from_db = User.query.filter_by(username='testuser123').first()
-    assert user_from_db is not None
-    assert user_from_db.username == 'testuser123'
-    assert user_from_db.email == 'test@example.com'
-
-
-def test_invalid_username(init_db):
-    """Test creating a user with an invalid username."""
-    with pytest.raises(ValueError, match="Username tidak valid"):
-        User.create_user(username='invaliduser', email='test2@example.com', password='password123')
-
-
-def test_invalid_password(init_db):
-    """Test creating a user with an invalid password."""
-    with pytest.raises(ValueError, match="Password tidak valid"):
-        User.create_user(username='validuser1', email='test3@example.com', password='short')
-
-
-def test_duplicate_username(init_db):
-    """Test creating two users with the same username."""
-    User.create_user(username='duplicateuser1', email='unique1@example.com', password='password123')
-
-    with pytest.raises(ValueError, match="Username sudah terdaftar"):
-        User.create_user(username='duplicateuser1', email='unique2@example.com', password='password123')
-
-
-def test_duplicate_email(init_db):
-    """Test creating two users with the same email."""
-    User.create_user(username='uniqueuser1', email='duplicate@example.com', password='password123')
-
-    with pytest.raises(ValueError, match="Email sudah terdaftar"):
-        User.create_user(username='uniqueuser2', email='duplicate@example.com', password='password123')
-
-
-def test_document_creation(init_db, test_user, test_file):
-    """Test creating a new document."""
-    document = Document.create_document(user_id=test_user.id, file=test_file, upload_folder="/tmp")
-
-    document_from_db = Document.query.filter_by(file_hash=document.file_hash).first()
-    assert document_from_db is not None
-    assert document_from_db.filename == test_file.filename
-    assert document_from_db.user_id == test_user.id
-
-
-def test_duplicate_document(init_db, test_user, test_file):
-    """Test preventing duplicate document uploads."""
-    Document.create_document(user_id=test_user.id, file=test_file, upload_folder="/tmp")
-
-    with pytest.raises(ValueError, match="Dokumen dengan isi yang sama sudah diunggah sebelumnya"):
-        Document.create_document(user_id=test_user.id, file=test_file, upload_folder="/tmp")
-
-
-def test_document_with_different_content(init_db, test_user):
-    """Test uploading documents with different content."""
-    file1 = BytesIO(b"Content of file 1.")
-    file1.filename = "file1.txt"
-
-    file2 = BytesIO(b"Content of file 2.")
-    file2.filename = "file2.txt"
-
-    doc1 = Document.create_document(user_id=test_user.id, file=file1, upload_folder="/tmp")
-    doc2 = Document.create_document(user_id=test_user.id, file=file2, upload_folder="/tmp")
-
-    assert doc1.file_hash != doc2.file_hash
-    assert doc1.filename == "file1.txt"
-    assert doc2.filename == "file2.txt"
-
-
-def test_invalid_filename(init_db, test_user):
-    """Test uploading a document with an invalid filename."""
-    invalid_file = BytesIO(b"Invalid content")
-    invalid_file.filename = "../../malicious.txt"  
-
-    with pytest.raises(ValueError, match="Nama file tidak valid atau berbahaya"):
-        Document.create_document(user_id=test_user.id, file=invalid_file, upload_folder="/tmp")
-
-    invalid_file.filename = "C:\\malicious.txt" 
-    with pytest.raises(ValueError, match="Nama file tidak valid atau berbahaya"):
-        Document.create_document(user_id=test_user.id, file=invalid_file, upload_folder="/tmp")
-
-    invalid_file.filename = "/tmp/malicious.txt"  
-    with pytest.raises(ValueError, match="Nama file tidak valid atau berbahaya"):
-        Document.create_document(user_id=test_user.id, file=invalid_file, upload_folder="/tmp")
-

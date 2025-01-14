@@ -62,7 +62,7 @@ def register():
 
             # Buat pengguna baru
             User.create_user(username=username, email=email, password=password)
-            flash('Registrasi berhasil! Silakan login.', 'success')
+            flash('Registration successful! Please login.', 'success')
             return redirect(url_for('auth.login'))
         except ValueError as e:
             flash(str(e), 'danger')
