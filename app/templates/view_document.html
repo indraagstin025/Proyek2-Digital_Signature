@@ -98,47 +98,13 @@
         }
     </style>
 </head>
-
-<body class="bg-gray-50 h-screen flex">
-
-    <!-- Sidebar Menu -->
-    <div class="w-64 bg-gray-900 text-white flex flex-col">
-        <div class="p-4 text-2xl font-bold text-center border-b border-gray-700">Tanda Tangan</div>
-        <ul class="flex-1 space-y-2 p-4">
-            <li id="open-signature-modal" class="flex items-center space-x-2 cursor-pointer hover:bg-gray-700 p-2 rounded">
-                <span>✍️</span>
-                <span>Buat Tanda Tangan</span>
-            </li>
-            <li id="view-qr" class="flex items-center space-x-2 cursor-pointer hover:bg-gray-700 p-2 rounded">
-                <span>🔍</span>
-                <span>Lihat QR Code</span>
-            </li>
-            <li id="save-qr-settings" class="flex items-center space-x-2 cursor-pointer hover:bg-gray-700 p-2 rounded">
-                <span>💾</span>
-                <span>Simpan Posisi QR</span>
-            </li>            
-            <li id="download-doc" class="flex items-center space-x-2 cursor-pointer hover:bg-gray-700 p-2 rounded">
-                <span>⬇️</span>
-                <span>Unduh dengan QR</span>
-            </li>
-        </ul>
+<body>
+    <div id="pdf-container">
+        <canvas id="pdf-render"></canvas>
+        <div id="qrWrapper" class="resize">
+            <img id="qrImage" src="" alt="QR Code">
+        </div>
     </div>
-
-    <!-- PDF Viewer Section -->
-    <div class="flex-1 flex flex-col">
-        <div class="p-4 bg-white shadow-md">
-            <h1 class="text-xl font-bold">File PDF: {{ document.filename }}</h1>
-        </div>
-
-        <div id="pdf-container">
-            <!-- Canvas untuk PDF -->
-            <canvas id="pdf-render" class="bg-white rounded"></canvas>
-
-            <!-- QR Code yang bisa di-drag -->
-            <div id="qrWrapper" class="drag-item resize hidden">
-                <img id="qrImage" src="" alt="QR Code">
-            </div>
-        </div>
 
         <!-- Navigasi PDF -->
         <div class="p-4 bg-white shadow-md flex justify-between items-center">
@@ -392,130 +358,92 @@ interact('#qrWrapper')
                 x += event.deltaRect.left;
                 y += event.deltaRect.top;
 
-                target.style.transform = `translate(${x}px, ${y}px)`;
+                        target.style.transform = `translate(${x}px, ${y}px)`;
+                        target.setAttribute("data-x", x);
+                        target.setAttribute("data-y", y);
+                    },
+                },
+            });
 
-                target.setAttribute('data-x', x);
-                target.setAttribute('data-y', y);
+        // Simpan Posisi QR Code
+        document.getElementById("save-qr-settings").addEventListener("click", async () => {
+            const x = parseFloat(qrWrapper.getAttribute("data-x")) || 0;
+            const y = parseFloat(qrWrapper.getAttribute("data-y")) || 0;
+            const width = qrWrapper.offsetWidth;
+            const height = qrWrapper.offsetHeight;
+            const documentHash = "{{ document.doc_hash }}";
+            const targetPage = pageNum - 1;
+
+            const backendWidth = 595.28;
+            const backendHeight = 841.89;
+
+            const scaleX = backendWidth / pdfCanvas.width;
+            const scaleY = backendHeight / pdfCanvas.height;
+
+            const backendX = x * scaleX;
+            const backendY = backendHeight - (y + height) * scaleY;
+            const backendWidthQR = width * scaleX;
+            const backendHeightQR = height * scaleY;
+
+            try {
+                const response = await fetch("/signature/save-qr-settings", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        document_hash: documentHash,
+                        x: backendX,
+                        y: backendY,
+                        width: backendWidthQR,
+                        height: backendHeightQR,
+                        target_page: targetPage,
+                    }),
+                });
+
+                const result = await response.json();
+                if (response.ok) {
+                    alert("Posisi QR Code berhasil disimpan!");
+                } else {
+                    alert(result.error || "Gagal menyimpan posisi QR Code.");
+                }
+            } catch (error) {
+                console.error("Kesalahan saat menyimpan posisi QR Code:", error);
             }
-        }
-    });
-
-
-    document.getElementById('save-qr-settings').addEventListener('click', async () => {
-    let x = parseFloat(qrWrapper.getAttribute('data-x')) || 0;
-    let y = parseFloat(qrWrapper.getAttribute('data-y')) || 0;
-    const width = qrWrapper.offsetWidth;
-    const height = qrWrapper.offsetHeight;
-    const documentHash = "{{ document.doc_hash }}";
-    const targetPage = pageNum - 1;
-
-    // Dimensi asli halaman PDF (default A4 dalam poin)
-    const backendWidth = 595.28; // A4 lebar (poin)
-    const backendHeight = 841.89; // A4 tinggi (poin)
-
-    // Rasio frontend ke backend
-    const scaleX = backendWidth / pdfCanvas.width;
-    const scaleY = backendHeight / pdfCanvas.height;
-
-    // Transformasi koordinat dan ukuran
-    const backendX = x * scaleX;
-    const backendY = backendHeight - (y + height) * scaleY; // Transformasi Y untuk backend
-    const backendWidthQR = width * scaleX;
-    const backendHeightQR = height * scaleY;
-
-    try {
-        const response = await fetch('/signature/save-qr-settings', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                document_hash: documentHash,
-                x: backendX,
-                y: backendY,
-                width: backendWidthQR,
-                height: backendHeightQR,
-                target_page: targetPage
-            })
         });
 
-        const result = await response.json();
-        if (response.ok) {
-            alert('Posisi QR Code berhasil disimpan!');
-        } else {
-            alert(result.error || 'Gagal menyimpan posisi QR Code.');
-        }
-    } catch (error) {
-        console.error('Kesalahan saat menyimpan posisi QR Code:', error);
-    }
-});
+        // Render Posisi QR Code
+        const renderSavedQRPosition = async (canvasWidth, canvasHeight) => {
+            try {
+                const response = await fetch(`/signature/get-token/{{ document.doc_hash }}`);
+                const result = await response.json();
 
-const renderSavedQRPosition = async () => {
-    const documentHash = "{{ document.doc_hash }}";
+                if (response.ok) {
+                    const { qr_position_x, qr_position_y, qr_width, qr_height } = result;
 
-    try {
-        const response = await fetch(`/signature/get-token/${documentHash}`);
-        const result = await response.json();
+                    const backendWidth = 595.28;
+                    const backendHeight = 841.89;
 
-        if (response.ok) {
-            const { qr_position_x, qr_position_y, qr_width, qr_height, target_page } = result;
+                    const scaleX = canvasWidth / backendWidth;
+                    const scaleY = canvasHeight / backendHeight;
 
-            if (qr_position_x != null && qr_position_y != null && qr_width && qr_height) {
-                const backendWidth = 595.28;
-                const backendHeight = 841.89;
+                    const xTransformed = qr_position_x * scaleX;
+                    const yTransformed = canvasHeight - (qr_position_y + qr_height) * scaleY;
+                    const widthTransformed = qr_width * scaleX;
+                    const heightTransformed = qr_height * scaleY;
 
-                const scaleX = pdfCanvas.width / backendWidth;
-                const scaleY = pdfCanvas.height / backendHeight;
+                    qrWrapper.style.transform = `translate(${xTransformed}px, ${yTransformed}px)`;
+                    qrWrapper.style.width = `${widthTransformed}px`;
+                    qrWrapper.style.height = `${heightTransformed}px`;
 
-                const xTransformed = qr_position_x * scaleX;
-                const yTransformed = pdfCanvas.height - (qr_position_y * scaleY + qr_height * scaleY);
-                const widthTransformed = qr_width * scaleX;
-                const heightTransformed = qr_height * scaleY;
-
-                qrWrapper.style.transform = `translate(${xTransformed}px, ${yTransformed}px)`;
-                qrWrapper.style.width = `${widthTransformed}px`;
-                qrWrapper.style.height = `${heightTransformed}px`;
-
-                qrWrapper.setAttribute('data-x', xTransformed);
-                qrWrapper.setAttribute('data-y', yTransformed);
+                    qrWrapper.setAttribute("data-x", xTransformed);
+                    qrWrapper.setAttribute("data-y", yTransformed);
+                    qrWrapper.classList.remove("hidden");
+                } else {
+                    console.error("Gagal mengambil posisi QR Code:", result.error);
+                }
+            } catch (error) {
+                console.error("Kesalahan saat mengambil posisi QR Code:", error);
             }
-        }
-    } catch (error) {
-        console.error('Kesalahan saat mengambil posisi QR Code:', error);
-    }
-};
-
-
-
-const downloadSignedDoc = async () => {
-    const documentHash = "{{ document.doc_hash }}";
-    try {
-        const response = await fetch(`/signature/generate-signed-doc/${documentHash}`, {
-            method: 'GET'
-        });
-
-        if (response.ok) {
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.style.display = 'none';
-            a.href = url;
-            a.download = `${documentHash}_signed.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            alert('Dokumen berhasil diunduh!');
-        } else {
-            const result = await response.json();
-            alert(result.error || 'Gagal mengunduh dokumen bertanda tangan.');
-        }
-    } catch (error) {
-        console.error('Kesalahan saat mengunduh dokumen bertanda tangan:', error);
-        alert('Terjadi kesalahan saat mengunduh dokumen bertanda tangan.');
-    }
-};
-
-document.getElementById('download-doc').addEventListener('click', downloadSignedDoc);
-
-
+        };
     </script>
 </body>
 
